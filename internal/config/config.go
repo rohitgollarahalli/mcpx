@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -243,6 +244,20 @@ type OAuthConfig struct {
 	JWKSURI string `yaml:"jwks_uri"`
 	// Issuer, when set, is validated against the token's iss claim.
 	Issuer string `yaml:"issuer"`
+	// Algorithms restricts the accepted JWS signature algorithms (default:
+	// all of SupportedJWTAlgorithms). Whatever is allowed here, a token is
+	// only verified with a JWKS key whose type matches its algorithm.
+	Algorithms []string `yaml:"algorithms"`
+}
+
+// SupportedJWTAlgorithms are the asymmetric JWS algorithms OAuth mode can
+// verify. HMAC (HS*) and "none" are deliberately absent: a resource server
+// verifying with a shared secret could forge tokens itself.
+var SupportedJWTAlgorithms = []string{
+	"RS256", "RS384", "RS512",
+	"PS256", "PS384", "PS512",
+	"ES256", "ES384", "ES512",
+	"EdDSA",
 }
 
 // AuditConfig defines audit logging settings.
@@ -407,6 +422,12 @@ func (c *Config) Validate() error {
 			}
 			if c.Auth.OAuth.JWKSURI == "" {
 				return fmt.Errorf("auth.oauth.jwks_uri is required to verify token signatures")
+			}
+			for _, a := range c.Auth.OAuth.Algorithms {
+				if slices.Contains(SupportedJWTAlgorithms, a) {
+					continue
+				}
+				return fmt.Errorf("auth.oauth.algorithms: unsupported algorithm %q (supported: %s)", a, strings.Join(SupportedJWTAlgorithms, ", "))
 			}
 		}
 	}

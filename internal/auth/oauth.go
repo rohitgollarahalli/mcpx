@@ -1,11 +1,8 @@
 package auth
 
 import (
-	"crypto/rsa"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,7 +13,7 @@ import (
 	"github.com/rohitgs28/mcpx/internal/config"
 )
 
-// OAuthValidator validates RS256 JWT access tokens for an MCP resource server.
+// OAuthValidator validates signed JWT access tokens (RSA, ECDSA, or Ed25519) for an MCP resource server.
 //
 // Per the MCP authorization spec it enforces two things a confused-deputy /
 // token-passthrough attacker cannot satisfy: a valid signature from the
@@ -26,19 +23,25 @@ import (
 type OAuthValidator struct {
 	cfg    config.OAuthConfig
 	client *http.Client
+	algs   []string // accepted JWS algorithms (config.SupportedJWTAlgorithms by default)
 
 	mu      sync.RWMutex
-	keys    map[string]*rsa.PublicKey
+	keys    map[string]verificationKey
 	fetched time.Time
 }
 
 // NewOAuthValidator builds a validator. JWKS keys are fetched lazily on first
 // use and refreshed when an unknown key id is seen (key rotation).
 func NewOAuthValidator(cfg config.OAuthConfig) *OAuthValidator {
+	algs := cfg.Algorithms
+	if len(algs) == 0 {
+		algs = config.SupportedJWTAlgorithms
+	}
 	return &OAuthValidator{
 		cfg:    cfg,
 		client: &http.Client{Timeout: 5 * time.Second},
-		keys:   make(map[string]*rsa.PublicKey),
+		algs:   algs,
+		keys:   make(map[string]verificationKey),
 	}
 }
 
@@ -47,7 +50,7 @@ func NewOAuthValidator(cfg config.OAuthConfig) *OAuthValidator {
 // identityClaim ("" when the claim is absent or not a string).
 func (v *OAuthValidator) Validate(tokenStr, identityClaim string) (string, error) {
 	opts := []jwt.ParserOption{
-		jwt.WithValidMethods([]string{"RS256"}),
+		jwt.WithValidMethods(v.algs),     // never HMAC or "none"
 		jwt.WithAudience(v.cfg.Resource), // RFC 8707 audience binding
 		jwt.WithExpirationRequired(),
 	}
@@ -69,24 +72,30 @@ func (v *OAuthValidator) Validate(tokenStr, identityClaim string) (string, error
 	return "", nil
 }
 
+// keyfunc resolves the verification key by kid and refuses it unless the
+// token's algorithm is one that key is bound to.
 func (v *OAuthValidator) keyfunc(token *jwt.Token) (any, error) {
 	kid, _ := token.Header["kid"].(string)
-	if key := v.lookup(kid); key != nil {
-		return key, nil
+	vk, ok := v.lookup(kid)
+	if !ok {
+		if err := v.refresh(); err != nil {
+			return nil, fmt.Errorf("fetching JWKS: %w", err)
+		}
+		if vk, ok = v.lookup(kid); !ok {
+			return nil, fmt.Errorf("no matching key for kid %q", kid)
+		}
 	}
-	if err := v.refresh(); err != nil {
-		return nil, fmt.Errorf("fetching JWKS: %w", err)
+	if alg := token.Method.Alg(); !vk.allows(alg) {
+		return nil, fmt.Errorf("algorithm %s is not valid for key %q", alg, kid)
 	}
-	if key := v.lookup(kid); key != nil {
-		return key, nil
-	}
-	return nil, fmt.Errorf("no matching key for kid %q", kid)
+	return vk.key, nil
 }
 
-func (v *OAuthValidator) lookup(kid string) *rsa.PublicKey {
+func (v *OAuthValidator) lookup(kid string) (verificationKey, bool) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	return v.keys[kid]
+	vk, ok := v.keys[kid]
+	return vk, ok
 }
 
 // refresh fetches and parses the JWKS, throttled to avoid hammering the
@@ -108,51 +117,30 @@ func (v *OAuthValidator) refresh() error {
 		return fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode)
 	}
 	var set struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-			Kid string `json:"kid"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		} `json:"keys"`
+		Keys []jwk `json:"keys"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&set); err != nil {
 		return err
 	}
-	keys := make(map[string]*rsa.PublicKey)
+	// Unusable keys (unsupported type or curve, encryption keys, malformed
+	// or off-curve points) are skipped so one bad entry cannot take down
+	// verification for the rest of the set.
+	keys := make(map[string]verificationKey)
 	for _, k := range set.Keys {
-		if k.Kty != "RSA" {
-			continue
-		}
-		pk, err := rsaPublicKey(k.N, k.E)
+		vk, err := parseJWK(k)
 		if err != nil {
 			continue
 		}
-		keys[k.Kid] = pk
+		keys[k.Kid] = vk
 	}
 	if len(keys) == 0 {
-		return fmt.Errorf("JWKS contained no usable RSA keys")
+		return fmt.Errorf("JWKS contained no usable signing keys (key types: %s)", keyTypes(set.Keys))
 	}
 	v.mu.Lock()
 	v.keys = keys
 	v.fetched = time.Now()
 	v.mu.Unlock()
 	return nil
-}
-
-func rsaPublicKey(nB64, eB64 string) (*rsa.PublicKey, error) {
-	nBytes, err := base64.RawURLEncoding.DecodeString(nB64)
-	if err != nil {
-		return nil, err
-	}
-	eBytes, err := base64.RawURLEncoding.DecodeString(eB64)
-	if err != nil {
-		return nil, err
-	}
-	e := new(big.Int).SetBytes(eBytes)
-	if !e.IsInt64() || e.Int64() > 1<<31-1 {
-		return nil, fmt.Errorf("invalid RSA exponent")
-	}
-	return &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: int(e.Int64())}, nil
 }
 
 // challenge builds the WWW-Authenticate value advertising RFC 9728 metadata

@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- OAuth mode now verifies ECDSA (`ES256`, `ES384`, `ES512`), Ed25519
+  (`EdDSA`), and RSA-PSS (`PS256`/`PS384`/`PS512`) tokens, as well as
+  `RS384`/`RS512`, from EC and OKP keys in the JWKS. Before this, only RS256
+  worked. Each key is bound to the algorithms its type and curve permit, and
+  narrowed further by its JWK `alg` when one is set, so a token header cannot
+  pick a different algorithm for a key. `auth.oauth.algorithms` optionally
+  limits which algorithms are accepted. HMAC and `none` are never accepted.
+  JWKS entries that are malformed or off-curve, encryption keys, and RSA keys
+  under 2048 bits are skipped.
+
 - Backend TLS and mutual TLS (`servers[].tls`): a private CA bundle
   (`ca_file`, which replaces the system roots for that backend), a client
   certificate (`cert_file`/`key_file`), `server_name` (SNI and verification

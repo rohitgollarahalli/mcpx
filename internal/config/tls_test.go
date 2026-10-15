@@ -33,3 +33,16 @@ func TestValidate_TLS(t *testing.T) {
 		t.Errorf("tls not parsed: %+v", cfg.Servers[0].TLS)
 	}
 }
+
+func TestValidate_OAuthAlgorithms(t *testing.T) {
+	base := "auth:\n  enabled: true\n  type: oauth\n  oauth:\n    resource: https://gw\n    jwks_uri: https://idp/jwks\n    algorithms: "
+	if _, err := loadFromStringErr(base + "[ES256, EdDSA]\n"); err != nil {
+		t.Errorf("valid algorithms rejected: %v", err)
+	}
+	for _, bad := range []string{"[HS256]", "[none]", "[es256]"} {
+		_, err := loadFromStringErr(base + bad + "\n")
+		if err == nil || !strings.Contains(err.Error(), "unsupported algorithm") {
+			t.Errorf("algorithms %s: error = %v", bad, err)
+		}
+	}
+}
