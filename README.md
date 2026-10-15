@@ -179,7 +179,7 @@ cache:
 
 Bearer token, API key, and **OAuth 2.1** authentication. Requests without valid credentials are rejected before reaching any backend.
 
-In `oauth` mode mcpx acts as an OAuth 2.1 protected resource server aligned with the [MCP authorization spec](https://modelcontextprotocol.io/specification/draft/basic/authorization): it verifies JWT (RS256) signatures against the authorization server's JWKS and enforces **audience binding** (RFC 8707) - a token is rejected unless its `aud` claim names this gateway, which is the spec's defense against token-passthrough and confused-deputy attacks. It also publishes [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) Protected Resource Metadata at `/.well-known/oauth-protected-resource` and advertises it via `WWW-Authenticate` on `401` responses.
+In `oauth` mode mcpx acts as an OAuth 2.1 protected resource server aligned with the [MCP authorization spec](https://modelcontextprotocol.io/specification/draft/basic/authorization): it verifies JWT signatures (RSA `RS*`/`PS*`, ECDSA `ES256`/`ES384`/`ES512`, and Ed25519 `EdDSA`) against the authorization server's JWKS and enforces **audience binding** (RFC 8707) - a token is rejected unless its `aud` claim names this gateway, which is the spec's defense against token-passthrough and confused-deputy attacks. It also publishes [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) Protected Resource Metadata at `/.well-known/oauth-protected-resource` and advertises it via `WWW-Authenticate` on `401` responses.
 
 ```yaml
 auth:
@@ -191,7 +191,10 @@ auth:
     issuer: "https://auth.example.com"             # optional
     authorization_servers:
       - "https://auth.example.com"
+    algorithms: [ES256, RS256]                     # optional allow-list (default: all asymmetric)
 ```
+
+Each JWKS key is bound to the algorithms its type permits. RSA keys verify `RS*`/`PS*`, each EC curve verifies only its own `ES*` algorithm, and Ed25519 keys verify only `EdDSA`. A key's JWK `alg`, when present, narrows that to exactly one algorithm. A token can therefore never choose to have a key used with a different algorithm, which closes off algorithm-confusion attacks. HMAC (`HS*`) and `none` are never accepted. RSA keys smaller than 2048 bits, encryption keys (`use: enc`), and malformed or off-curve EC keys in the JWKS are skipped.
 
 The credential a client presents to mcpx (the `Authorization` header, or the API-key header) is stripped once it is verified and is **never forwarded to a backend**. Backends that need their own credentials get them through secret injection, described next.
 

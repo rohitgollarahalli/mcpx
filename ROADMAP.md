@@ -50,7 +50,7 @@ Make mcpx the simplest, fastest way to secure MCP servers in production. One bin
 - [x] Per-client policies (multi-tenant access control)
 - [x] Argument-level policy rules (e.g., allow `read_file` only for specific paths)
 - [x] Secret injection — inject backend credentials (`servers[].headers`, `${env:}` / `${file:}` references); vault providers to follow
-- [ ] ES256/EdDSA token signature support (RS256 today)
+- [x] ES256/EdDSA token signature support (plus ES384/ES512, PS*, RS384/RS512)
 
 ## Phase 5: Operational Excellence
 
