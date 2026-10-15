@@ -136,3 +136,22 @@ func TestNoServersIsHealthy(t *testing.T) {
 		t.Errorf("expected healthy with no servers, got %s", report.Status)
 	}
 }
+
+// TestProbeUsesServerTransport checks a backend's own transport (carrying
+// its TLS trust settings) is used for the probe.
+func TestProbeUsesServerTransport(t *testing.T) {
+	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer backend.Close()
+
+	c := NewChecker([]ServerInfo{
+		{Name: "default", URL: backend.URL},
+		{Name: "trusted", URL: backend.URL, Transport: backend.Client().Transport},
+	}, "0.1.0")
+	r := c.Check(context.Background())
+	if r.Servers[0].Healthy {
+		t.Error("probe without the backend's CA should fail verification")
+	}
+	if !r.Servers[1].Healthy {
+		t.Errorf("probe with the backend's transport failed: %s", r.Servers[1].Error)
+	}
+}

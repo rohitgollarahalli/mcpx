@@ -156,6 +156,10 @@ type ServerConfig struct {
 	// stay in the gateway: clients never see or need them. Values may use
 	// secret references (${env:NAME}, ${file:PATH}). http/sse only.
 	Headers map[string]string `yaml:"headers"`
+	// TLS configures the connection to an https backend: a private CA, a
+	// client certificate for mutual TLS, and verification settings.
+	// http/sse only, and only with an https url.
+	TLS *BackendTLSConfig `yaml:"tls"`
 	// Stdio transport: the gateway spawns Command as a child process and
 	// speaks newline-delimited JSON-RPC over its stdin/stdout. One shared
 	// process serves all gateway clients.
@@ -321,12 +325,26 @@ func (c *Config) Validate() error {
 			if err := validateHeaders(srv.Headers, fmt.Sprintf("server %q: headers", srv.Name)); err != nil {
 				return err
 			}
+			if srv.TLS != nil {
+				if !strings.HasPrefix(strings.ToLower(srv.URL), "https://") {
+					return fmt.Errorf("server %q: tls requires an https:// url (got %q)", srv.Name, srv.URL)
+				}
+				// Building loads the CA and key pair, so a missing file or
+				// mismatched cert/key fails the load (or reload), not the
+				// first request.
+				if _, err := srv.TLS.ClientConfig(); err != nil {
+					return fmt.Errorf("server %q: tls: %w", srv.Name, err)
+				}
+			}
 		case "stdio":
 			if srv.Command == "" {
 				return fmt.Errorf("server %q: command is required with transport \"stdio\"", srv.Name)
 			}
 			if srv.URL != "" {
 				return fmt.Errorf("server %q: url must not be set with transport \"stdio\"", srv.Name)
+			}
+			if srv.TLS != nil {
+				return fmt.Errorf("server %q: tls is only valid with transport \"http\" or \"sse\"", srv.Name)
 			}
 			if len(srv.Headers) > 0 {
 				return fmt.Errorf("server %q: headers are only valid with transport \"http\" or \"sse\" (use env to pass credentials to a stdio server)", srv.Name)

@@ -291,6 +291,10 @@ func buildHandler(cfg *config.Config, mc *metrics.Collector, ts *integrity.Store
 			// No URL to poke; the child process reports its own state.
 			hs.URL = "stdio:" + srv.Command
 			hs.Probe = sm.Ensure(srv.Name, stdio.FromServerConfig(srv)).Probe
+		} else if t, err := proxy.BackendTransport(srv); err == nil && t != nil {
+			// Probe with the backend's own TLS settings; a TLS error here
+			// also fails proxy.New below, which reports it.
+			hs.Transport = t
 		}
 		if srv.Policy != nil {
 			hs.Policy = &health.PolicySummary{
