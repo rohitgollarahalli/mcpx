@@ -193,6 +193,40 @@ auth:
       - "https://auth.example.com"
 ```
 
+The credential a client presents to mcpx (the `Authorization` header, or the API-key header) is stripped once it is verified and is **never forwarded to a backend**. Backends that need their own credentials get them through secret injection, described next.
+
+### 🔑 Secret Injection
+
+Keep backend credentials in the gateway so clients never see them. `servers[].headers` is set on every request forwarded to that backend and replaces any client header with the same name. Values can reference secrets instead of holding them in plain text:
+
+| Reference | Resolves to |
+|---|---|
+| `${env:NAME}` | the environment variable `NAME` |
+| `${file:PATH}` | the contents of `PATH`, with trailing newlines trimmed (works with Docker and Kubernetes secret mounts) |
+| `$${` | a literal `${` |
+
+```yaml
+servers:
+  - name: github
+    url: https://api.githubcopilot.com/mcp/
+    headers:
+      Authorization: "Bearer ${file:/run/secrets/github_token}"
+      X-Tenant: acme
+  - name: local
+    transport: stdio
+    command: npx
+    args: ["-y", "some-mcp-server"]
+    env:
+      API_KEY: ${env:SOME_API_KEY}     # stdio servers get secrets via env
+
+auth:
+  enabled: true
+  type: bearer
+  token: ${env:MCPX_GATEWAY_TOKEN}     # gateway tokens can be references too
+```
+
+References work in `servers[].headers`, `servers[].env`, `auth.token`, `auth.clients[].token`, and `tracing.headers`. Backend URLs are left as written because they show up in logs and on `/servers`. Resolution **fails closed**: an unset variable, an unreadable file, or an empty value stops startup (or rejects the reload). Error messages name the reference and never the value. References are resolved again on every reload. To rotate a credential, update the secret file and send `SIGHUP`; `-watch` only watches the config file itself. Stdio children restart automatically when their resolved env changes.
+
 ### 🛡️ Tool-Level Access Control
 
 Define allow and deny lists per server. Use `read_only: true` to let clients discover tools without calling them. Deny lists take precedence.
@@ -453,6 +487,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan. Key upcoming work:
 - [x] Stdio transport (spawn local MCP servers)
 - [x] OpenTelemetry tracing (OTLP/HTTP spans, W3C context propagation)
 - [x] Response caching for idempotent tools (LRU + TTL + single-flight)
+- [x] Secret injection for backend credentials (env/file references; no token passthrough)
 - [ ] WebSocket transport proxying
 - [ ] Web dashboard
 - [ ] Plugin system (Go + WASM)

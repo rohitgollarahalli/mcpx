@@ -129,3 +129,45 @@ func TestMiddleware_Bearer_ConstantTimeComparison(t *testing.T) {
 		}
 	}
 }
+
+// TestMiddleware_StripsGatewayCredential checks the credential presented to
+// the gateway is removed before the request continues toward a backend.
+func TestMiddleware_StripsGatewayCredential(t *testing.T) {
+	cases := []struct {
+		name, header, value string
+		cfg                 config.AuthConfig
+	}{
+		{"bearer", "Authorization", "Bearer tok", config.AuthConfig{Enabled: true, Type: "bearer", Token: "tok"}},
+		{"api_key default", "X-API-Key", "tok", config.AuthConfig{Enabled: true, Type: "api_key", Token: "tok"}},
+		{"api_key custom", "X-Gateway-Key", "tok", config.AuthConfig{Enabled: true, Type: "api_key", Token: "tok", Header: "X-Gateway-Key"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var leaked string
+			h := auth.Middleware(c.cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				leaked = r.Header.Get(c.header)
+			}))
+			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			req.Header.Set(c.header, c.value)
+			h.ServeHTTP(httptest.NewRecorder(), req)
+			if leaked != "" {
+				t.Errorf("%s still present downstream: %q", c.header, leaked)
+			}
+		})
+	}
+}
+
+// TestMiddleware_DisabledKeepsAuthorization checks that with gateway auth
+// off, an Authorization header is not the gateway's and passes through.
+func TestMiddleware_DisabledKeepsAuthorization(t *testing.T) {
+	var seen string
+	h := auth.Middleware(config.AuthConfig{Enabled: false})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("Authorization")
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("Authorization", "Bearer backend-token")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if seen != "Bearer backend-token" {
+		t.Errorf("Authorization = %q, want passthrough when auth is disabled", seen)
+	}
+}

@@ -6,8 +6,10 @@ package config
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -149,12 +151,17 @@ type ServerConfig struct {
 	Name      string `yaml:"name"`
 	URL       string `yaml:"url"`       // http/sse only
 	Transport string `yaml:"transport"` // "http" (default), its alias "sse" (SSE streams are auto-detected per response), or "stdio"
+	// Headers are set on every request forwarded to this backend, replacing
+	// any client-supplied header of the same name, so backend credentials
+	// stay in the gateway: clients never see or need them. Values may use
+	// secret references (${env:NAME}, ${file:PATH}). http/sse only.
+	Headers map[string]string `yaml:"headers"`
 	// Stdio transport: the gateway spawns Command as a child process and
 	// speaks newline-delimited JSON-RPC over its stdin/stdout. One shared
 	// process serves all gateway clients.
 	Command        string            `yaml:"command"`         // stdio only: executable to spawn
 	Args           []string          `yaml:"args"`            // stdio only: arguments for Command
-	Env            map[string]string `yaml:"env"`             // stdio only: extra environment for the child
+	Env            map[string]string `yaml:"env"`             // stdio only: extra environment for the child (values may use secret references)
 	WorkDir        string            `yaml:"workdir"`         // stdio only: working directory for the child
 	RequestTimeout Duration          `yaml:"request_timeout"` // stdio only: per-request reply deadline (default 30s)
 	Policy         *Policy           `yaml:"policy"`
@@ -275,6 +282,12 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
+	// Resolve secret references before validation so checks (non-empty
+	// tokens, header values free of CR/LF) see the real values.
+	if err := cfg.resolveSecrets(); err != nil {
+		return nil, fmt.Errorf("resolving secrets: %w", err)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
@@ -305,12 +318,23 @@ func (c *Config) Validate() error {
 			if srv.Command != "" {
 				return fmt.Errorf("server %q: command is only valid with transport \"stdio\"", srv.Name)
 			}
+			if err := validateHeaders(srv.Headers, fmt.Sprintf("server %q: headers", srv.Name)); err != nil {
+				return err
+			}
 		case "stdio":
 			if srv.Command == "" {
 				return fmt.Errorf("server %q: command is required with transport \"stdio\"", srv.Name)
 			}
 			if srv.URL != "" {
 				return fmt.Errorf("server %q: url must not be set with transport \"stdio\"", srv.Name)
+			}
+			if len(srv.Headers) > 0 {
+				return fmt.Errorf("server %q: headers are only valid with transport \"http\" or \"sse\" (use env to pass credentials to a stdio server)", srv.Name)
+			}
+			for k, v := range srv.Env {
+				if k == "" || strings.ContainsAny(k, "=\x00") || strings.ContainsRune(v, 0) {
+					return fmt.Errorf("server %q: env: invalid entry %q (names must be non-empty without '=' or NUL; values must not contain NUL)", srv.Name, k)
+				}
 			}
 		default:
 			return fmt.Errorf("server %q: transport must be \"http\", \"sse\", or \"stdio\" (got %q)", srv.Name, srv.Transport)
@@ -440,6 +464,55 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// reservedHeaders may not be injected: the reverse proxy manages framing,
+// routing, and connection headers itself, and overriding them would corrupt
+// or misroute the forwarded request.
+var reservedHeaders = map[string]bool{
+	"Host": true, "Content-Length": true, "Transfer-Encoding": true,
+	"Connection": true, "Keep-Alive": true, "Te": true, "Trailer": true,
+	"Upgrade": true, "Proxy-Connection": true,
+}
+
+// validateHeaders checks injected header names are valid HTTP tokens, not
+// reserved, and unique case-insensitively, and that values (already
+// secret-expanded) contain no CR, LF, or NUL that could split the request.
+func validateHeaders(h map[string]string, where string) error {
+	seen := make(map[string]bool, len(h))
+	for name, value := range h {
+		if !isToken(name) {
+			return fmt.Errorf("%s: invalid header name %q", where, name)
+		}
+		canon := http.CanonicalHeaderKey(name)
+		if reservedHeaders[canon] {
+			return fmt.Errorf("%s: header %q is managed by the proxy and cannot be injected", where, name)
+		}
+		if seen[canon] {
+			return fmt.Errorf("%s: duplicate header %q (names are case-insensitive)", where, canon)
+		}
+		seen[canon] = true
+		if strings.ContainsAny(value, "\r\n\x00") {
+			// Deliberately does not echo the value: it may be a secret.
+			return fmt.Errorf("%s: value of %q contains a CR, LF, or NUL character", where, name)
+		}
+	}
+	return nil
+}
+
+// isToken reports whether s is a valid HTTP header field name (RFC 9110 token).
+func isToken(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("!#$%&'*+-.^_`|~", c) >= 0 {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // validatePolicy checks a policy's tool_rules: every argument rule must carry
