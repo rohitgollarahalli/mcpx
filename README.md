@@ -227,6 +227,24 @@ auth:
 
 References work in `servers[].headers`, `servers[].env`, `auth.token`, `auth.clients[].token`, and `tracing.headers`. Backend URLs are left as written because they show up in logs and on `/servers`. Resolution **fails closed**: an unset variable, an unreadable file, or an empty value stops startup (or rejects the reload). Error messages name the reference and never the value. References are resolved again on every reload. To rotate a credential, update the secret file and send `SIGHUP`; `-watch` only watches the config file itself. Stdio children restart automatically when their resolved env changes.
 
+### 🔒 Backend TLS and mTLS
+
+`servers[].tls` sets how mcpx connects to an `https` backend. It can trust a private CA, present a client certificate for **mutual TLS**, override the verified server name, and require a minimum TLS version. Health probes use the same settings.
+
+```yaml
+servers:
+  - name: internal-tools
+    url: https://10.0.4.12:8443/mcp
+    tls:
+      ca_file: /etc/mcpx/internal-ca.pem     # replaces system roots for this backend
+      cert_file: /etc/mcpx/gateway.pem       # client certificate (mTLS)
+      key_file: /etc/mcpx/gateway.key
+      server_name: tools.internal            # SNI and verification name (default: the url host)
+      min_version: "1.3"                     # "1.2" (default) or "1.3"
+```
+
+Certificates and keys are loaded and checked when the config loads. A missing file, a CA file with no certificates, or a key that doesn't match its certificate stops startup or rejects the reload, instead of failing on the first request. Files are read again on every reload, so to rotate a certificate, replace the files and send `SIGHUP`. `insecure_skip_verify: true` turns verification off and is meant for local testing only.
+
 ### 🛡️ Tool-Level Access Control
 
 Define allow and deny lists per server. Use `read_only: true` to let clients discover tools without calling them. Deny lists take precedence.
@@ -488,6 +506,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan. Key upcoming work:
 - [x] OpenTelemetry tracing (OTLP/HTTP spans, W3C context propagation)
 - [x] Response caching for idempotent tools (LRU + TTL + single-flight)
 - [x] Secret injection for backend credentials (env/file references; no token passthrough)
+- [x] Backend mTLS (client certificates, private CA, server name override)
 - [ ] WebSocket transport proxying
 - [ ] Web dashboard
 - [ ] Plugin system (Go + WASM)

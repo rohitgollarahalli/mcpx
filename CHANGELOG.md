@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Backend TLS and mutual TLS (`servers[].tls`): a private CA bundle
+  (`ca_file`, which replaces the system roots for that backend), a client
+  certificate (`cert_file`/`key_file`), `server_name` (SNI and verification
+  name), `min_version` ("1.2" or "1.3"), and `insecure_skip_verify` for
+  testing. Certificates are loaded and checked at config load and on every
+  reload, so a bad file or mismatched key pair is rejected up front. Deep
+  health probes use each backend's TLS settings.
+
 - Secret injection for backend credentials. `servers[].headers` sets headers
   on every request forwarded to an HTTP/SSE backend, replacing any
   client-supplied header with the same name, so backend credentials never pass

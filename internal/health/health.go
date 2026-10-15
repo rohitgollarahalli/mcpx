@@ -49,6 +49,9 @@ type ServerInfo struct {
 	URL    string
 	Policy *PolicySummary
 	Probe  func(ctx context.Context) error
+	// Transport, when set, carries the backend's TLS settings (private CA,
+	// client certificate) for the default HTTP probe.
+	Transport http.RoundTripper
 }
 
 // Checker performs health checks against registered backends.
@@ -135,7 +138,11 @@ func (c *Checker) probe(ctx context.Context, srv ServerInfo) Status {
 		return status
 	}
 
-	resp, err := c.client.Do(req)
+	client := c.client
+	if srv.Transport != nil {
+		client = &http.Client{Timeout: c.client.Timeout, Transport: srv.Transport}
+	}
+	resp, err := client.Do(req)
 	latency := time.Since(start)
 	status.LatencyMs = float64(latency.Microseconds()) / 1000.0
 

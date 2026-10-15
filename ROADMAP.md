@@ -46,7 +46,7 @@ Make mcpx the simplest, fastest way to secure MCP servers in production. One bin
 - [x] Audience validation (RFC 8707) + RFC 9728 Protected Resource Metadata
 - [x] Tool integrity pinning — full-schema hashing detects rug-pull/mutation (CVE-2025-54136)
 - [x] Tool-list filtering — hide policy-denied tools from `tools/list`
-- [ ] mTLS between gateway and backends
+- [x] mTLS between gateway and backends (`servers[].tls`)
 - [x] Per-client policies (multi-tenant access control)
 - [x] Argument-level policy rules (e.g., allow `read_file` only for specific paths)
 - [x] Secret injection — inject backend credentials (`servers[].headers`, `${env:}` / `${file:}` references); vault providers to follow

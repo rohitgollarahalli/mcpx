@@ -102,6 +102,13 @@ func New(cfg *config.Config, pe *policy.Engine, al *audit.Logger, ts *integrity.
 				return nil, fmt.Errorf("parsing URL for server %q: %w", sc.Name, err)
 			}
 			p := httputil.NewSingleHostReverseProxy(target)
+			transport, err := BackendTransport(sc)
+			if err != nil {
+				return nil, fmt.Errorf("server %q: tls: %w", sc.Name, err)
+			}
+			if transport != nil {
+				p.Transport = transport
+			}
 			// The stdlib flushes text/event-stream bodies immediately; the
 			// interval covers other streaming content types (e.g. ndjson).
 			p.FlushInterval = 100 * time.Millisecond
