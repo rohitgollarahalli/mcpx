@@ -42,11 +42,7 @@ func Middleware(cfg config.AuthConfig) func(http.Handler) http.Handler {
 				}
 				client = name
 			case "api_key":
-				hdr := cfg.Header
-				if hdr == "" {
-					hdr = "X-API-Key"
-				}
-				name, ok := matchCredential(creds, r.Header.Get(hdr))
+				name, ok := matchCredential(creds, r.Header.Get(credentialHeader(cfg)))
 				if !ok {
 					httperr.Write(w, http.StatusUnauthorized, httperr.CodeUnauthorized, "invalid API key")
 					return
@@ -70,9 +66,31 @@ func Middleware(cfg config.AuthConfig) func(http.Handler) http.Handler {
 			if client != "" {
 				r = r.WithContext(WithClient(r.Context(), client))
 			}
+			// The credential was issued for the gateway, not the backend:
+			// strip it so it is never forwarded upstream (the MCP spec forbids
+			// token passthrough). Backends that need credentials get them via
+			// servers[].headers instead.
+			if hdr := credentialHeader(cfg); hdr != "" {
+				r.Header.Del(hdr)
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// credentialHeader names the request header carrying the gateway credential
+// for the configured auth type, or "" when there is none.
+func credentialHeader(cfg config.AuthConfig) string {
+	switch cfg.Type {
+	case "bearer", "oauth":
+		return "Authorization"
+	case "api_key":
+		if cfg.Header != "" {
+			return cfg.Header
+		}
+		return "X-API-Key"
+	}
+	return ""
 }
 
 // matchCredential compares the presented token against every credential in

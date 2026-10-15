@@ -116,9 +116,16 @@ func New(cfg *config.Config, pe *policy.Engine, al *audit.Logger, ts *integrity.
 			// ModifyResponse sees plain JSON and pin tools/list to a JSON
 			// response: a Streamable HTTP backend may otherwise answer over
 			// SSE, which would bypass integrity pinning and list filtering.
+			// Injected headers (backend credentials) are set after the stock
+			// director and replace any same-named client header, so a client
+			// can neither see nor override them.
 			orig := p.Director
+			inject := sc.Headers
 			p.Director = func(req *http.Request) {
 				orig(req)
+				for k, v := range inject {
+					req.Header.Set(k, v)
+				}
 				tracing.InjectHeaders(req.Context(), req.Header)
 				if g.inspect {
 					req.Header.Del("Accept-Encoding")

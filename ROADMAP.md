@@ -49,7 +49,7 @@ Make mcpx the simplest, fastest way to secure MCP servers in production. One bin
 - [ ] mTLS between gateway and backends
 - [x] Per-client policies (multi-tenant access control)
 - [x] Argument-level policy rules (e.g., allow `read_file` only for specific paths)
-- [ ] Secret injection — inject credentials into backend requests from a vault
+- [x] Secret injection — inject backend credentials (`servers[].headers`, `${env:}` / `${file:}` references); vault providers to follow
 - [ ] ES256/EdDSA token signature support (RS256 today)
 
 ## Phase 5: Operational Excellence

@@ -8,6 +8,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Secret injection for backend credentials. `servers[].headers` sets headers
+  on every request forwarded to an HTTP/SSE backend, replacing any
+  client-supplied header with the same name, so backend credentials never pass
+  through or reach clients. Values (and `servers[].env`, `auth.token`,
+  `auth.clients[].token`, `tracing.headers`) can use `${env:NAME}` and
+  `${file:PATH}` secret references. These are resolved at load and on every
+  reload (rotate with `SIGHUP`) and fail closed when unset, unreadable, or
+  empty. Injected header names are validated: reserved and hop-by-hop headers
+  are rejected, and values containing CR/LF/NUL are rejected.
+
+### Security
+
+- The credential a client presents to the gateway (`Authorization` for
+  `bearer`/`oauth`, or the API-key header for `api_key`) is now stripped after
+  authentication instead of being forwarded to backends. Before this change,
+  every backend received the client's gateway token, which is the token
+  passthrough the MCP authorization spec forbids. If a backend relied on that
+  passthrough, configure its credential under `servers[].headers`. Nothing
+  changes when gateway auth is disabled.
+
 - Response caching for idempotent tools (`cache` section). A bounded in-memory
   LRU with per-tool TTLs serves repeat `tools/call` requests without touching
   the backend. Caching is opt-in per tool under `servers[].cache.tools`; entries
