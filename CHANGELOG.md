@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Grafana dashboard for the gateway (`deploy/grafana/dashboards/mcpx.json`)
+  covering traffic, latency percentiles, policy decisions, denied tools, auth
+  failures, rate-limit hits, circuit-breaker state and cache hit ratio, with
+  a per-server filter. `docker compose --profile observability up` starts
+  Prometheus and Grafana with it pre-loaded. A unit test fails if the
+  dashboard references a metric the collector does not expose.
 - OAuth mode now verifies ECDSA (`ES256`, `ES384`, `ES512`), Ed25519
   (`EdDSA`), and RSA-PSS (`PS256`/`PS384`/`PS512`) tokens, as well as
   `RS384`/`RS512`, from EC and OKP keys in the JWKS. Before this, only RS256
