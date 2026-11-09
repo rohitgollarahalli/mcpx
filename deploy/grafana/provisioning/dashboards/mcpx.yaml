@@ -1,0 +1,12 @@
+# Grafana dashboard provisioning: loads every dashboard JSON mounted at
+# /var/lib/grafana/dashboards (see docker-compose.yml).
+apiVersion: 1
+
+providers:
+  - name: mcpx
+    folder: mcpx
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

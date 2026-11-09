@@ -23,3 +23,34 @@ services:
     volumes:
       - ./examples/demo.docker.yaml:/etc/mcpx/demo.yaml:ro
     command: ["-c", "/etc/mcpx/demo.yaml"]
+
+  # --- Optional observability stack -------------------------------------
+  # Prometheus + Grafana with the mcpx dashboard pre-loaded:
+  #
+  #   docker compose --profile observability up --build
+  #   open http://localhost:3000   (anonymous viewer access, admin/admin to edit)
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: ["observability"]
+    depends_on:
+      - mcpx
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: ["observability"]
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/mcpx.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro

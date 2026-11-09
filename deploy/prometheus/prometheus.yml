@@ -1,0 +1,16 @@
+# Prometheus scrape config for the mcpx observability demo.
+#
+#   docker compose --profile observability up --build
+#
+# Scrapes the gateway's built-in /metrics endpoint. Outside compose, point
+# `targets` at wherever mcpx listens (e.g. "localhost:8080").
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: mcpx
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["mcpx:8080"]

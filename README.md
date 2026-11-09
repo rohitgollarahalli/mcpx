@@ -409,6 +409,15 @@ mcpx_cache_lookups_total{server="docs",tool="search_docs",result="hit"} 17
 mcpx_cache_entries 24
 ```
 
+**Grafana dashboard.** A ready-made dashboard ships in [`deploy/grafana/dashboards/mcpx.json`](deploy/grafana/dashboards/mcpx.json): request rate, 5xx ratio, p50/p95/p99 latency, allow-vs-deny policy decisions, top and denied tools (per client), auth failures, rate-limit hits, circuit-breaker state, and cache hit ratio, all filterable by server. To see it running against the demo:
+
+```bash
+docker compose --profile observability up --build
+open http://localhost:3000        # Grafana, dashboard pre-loaded (admin/admin to edit)
+```
+
+Already running Prometheus + Grafana? Point Prometheus at mcpx's `/metrics` (see [`deploy/prometheus/prometheus.yml`](deploy/prometheus/prometheus.yml)), then import the JSON via **Dashboards → New → Import** and pick your Prometheus datasource. A unit test fails if a panel queries a metric the gateway no longer exposes, so the dashboard can't silently rot.
+
 ### 🔭 Distributed Tracing (OpenTelemetry)
 
 Emit one OpenTelemetry span per request, exported over **OTLP/HTTP** to Jaeger, Tempo, Grafana, or any OTLP collector. Each request produces a root `mcpx.request` span with child spans for policy evaluation (`mcpx.policy`) and the backend call (`mcpx.proxy`), tagged with the server, MCP method, tool, client, and allow/deny decision. Inbound W3C `traceparent` headers are honored and trace context is propagated to instrumented HTTP backends, so a single trace spans the caller, the gateway, and the upstream server.
