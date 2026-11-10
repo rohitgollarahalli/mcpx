@@ -5,14 +5,19 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/rohitgs28/mcpx/internal/openapi"
 	"gopkg.in/yaml.v3"
 )
 
@@ -149,18 +154,25 @@ type InspectionConfig struct {
 
 // ServerConfig defines a backend MCP server.
 type ServerConfig struct {
-	Name      string `yaml:"name"`
-	URL       string `yaml:"url"`       // http/sse only
-	Transport string `yaml:"transport"` // "http" (default), its alias "sse" (SSE streams are auto-detected per response), or "stdio"
+	Name string `yaml:"name"`
+	// URL is the MCP endpoint for http/sse. For openapi it is the REST API's
+	// base URL, defaulting to the first entry of the spec's servers list.
+	URL       string `yaml:"url"`
+	Transport string `yaml:"transport"` // "http" (default), its alias "sse" (SSE streams are auto-detected per response), "stdio", or "openapi"
 	// Headers are set on every request forwarded to this backend, replacing
 	// any client-supplied header of the same name, so backend credentials
 	// stay in the gateway: clients never see or need them. Values may use
-	// secret references (${env:NAME}, ${file:PATH}). http/sse only.
+	// secret references (${env:NAME}, ${file:PATH}). For openapi they are
+	// sent on every upstream REST API call. http/sse/openapi only.
 	Headers map[string]string `yaml:"headers"`
 	// TLS configures the connection to an https backend: a private CA, a
 	// client certificate for mutual TLS, and verification settings.
-	// http/sse only, and only with an https url.
+	// http/sse/openapi only, and only with an https url.
 	TLS *BackendTLSConfig `yaml:"tls"`
+	// OpenAPI turns a REST API into an MCP server inside the gateway: every
+	// operation in the spec becomes a tool. Required with transport
+	// "openapi", invalid otherwise.
+	OpenAPI *OpenAPIConfig `yaml:"openapi"`
 	// Stdio transport: the gateway spawns Command as a child process and
 	// speaks newline-delimited JSON-RPC over its stdin/stdout. One shared
 	// process serves all gateway clients.
@@ -168,11 +180,102 @@ type ServerConfig struct {
 	Args           []string          `yaml:"args"`            // stdio only: arguments for Command
 	Env            map[string]string `yaml:"env"`             // stdio only: extra environment for the child (values may use secret references)
 	WorkDir        string            `yaml:"workdir"`         // stdio only: working directory for the child
-	RequestTimeout Duration          `yaml:"request_timeout"` // stdio only: per-request reply deadline (default 30s)
+	RequestTimeout Duration          `yaml:"request_timeout"` // stdio/openapi: per-request deadline (default 30s)
 	Policy         *Policy           `yaml:"policy"`
 	// Cache names the tools on this server whose responses may be cached.
 	// Ignored unless the top-level cache section is enabled.
 	Cache *ServerCacheConfig `yaml:"cache"`
+}
+
+// OpenAPIConfig describes a REST API to expose as MCP tools. Tool names are
+// the operationIds (sanitized), or method_path for operations without one,
+// so policy allow/deny lists, argument rules, and cache rules refer to them
+// like any other tool. Operation filters use glob patterns ("list*").
+type OpenAPIConfig struct {
+	// Spec is the path to an OpenAPI 3.x document (JSON or YAML). A relative
+	// path is resolved against the directory of the config file. The spec
+	// is re-read on every config reload.
+	Spec string `yaml:"spec"`
+	// IncludeOperations, when set, exposes only operations whose tool name
+	// or operationId matches one of these patterns.
+	IncludeOperations []string `yaml:"include_operations"`
+	// ExcludeOperations hides matching operations.
+	ExcludeOperations []string `yaml:"exclude_operations"`
+	// IncludeTags, when set, exposes only operations with one of these tags.
+	IncludeTags []string `yaml:"include_tags"`
+	// ExcludeTags hides operations with any of these tags.
+	ExcludeTags []string `yaml:"exclude_tags"`
+	// Methods limits tools to these HTTP methods; ["GET"] exposes a
+	// read-only view of the API.
+	Methods []string `yaml:"methods"`
+	// MaxResponseBytes caps the API response returned to the client
+	// (default 1 MiB); longer responses are truncated with a note.
+	MaxResponseBytes int64 `yaml:"max_response_bytes"`
+
+	// Parsed is the loaded spec, filled in by Validate so the gateway does
+	// not read the file a second time.
+	Parsed *openapi.Spec `yaml:"-"`
+}
+
+// Filter returns the operation filter for this API.
+func (o *OpenAPIConfig) Filter() openapi.Filter {
+	return openapi.Filter{
+		IncludeOperations: o.IncludeOperations,
+		ExcludeOperations: o.ExcludeOperations,
+		IncludeTags:       o.IncludeTags,
+		ExcludeTags:       o.ExcludeTags,
+		Methods:           o.Methods,
+	}
+}
+
+// LoadOpenAPISpec reads and parses an OpenAPI document. YAML documents are
+// converted to JSON first; JSON is valid YAML, so either format works.
+func LoadOpenAPISpec(path string) (*openapi.Spec, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading openapi spec: %w", err)
+	}
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) > 0 && trimmed[0] != '{' {
+		var doc any
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			return nil, fmt.Errorf("parsing openapi spec %s: %w", path, err)
+		}
+		if trimmed, err = json.Marshal(jsonCompatible(doc)); err != nil {
+			return nil, fmt.Errorf("converting openapi spec %s to JSON: %w", path, err)
+		}
+	}
+	spec, err := openapi.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return spec, nil
+}
+
+// jsonCompatible rewrites decoded YAML into values encoding/json accepts:
+// mappings with non-string keys (an unquoted response code like 200) get
+// their keys stringified.
+func jsonCompatible(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, val := range x {
+			x[k] = jsonCompatible(val)
+		}
+		return x
+	case map[any]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			out[fmt.Sprint(k)] = jsonCompatible(val)
+		}
+		return out
+	case []any:
+		for i, val := range x {
+			x[i] = jsonCompatible(val)
+		}
+		return x
+	default:
+		return v
+	}
 }
 
 // Policy defines tool-level access control for a server.
@@ -301,6 +404,14 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
+	// OpenAPI spec paths are relative to the config file, so a config and
+	// its specs can move together.
+	for i := range cfg.Servers {
+		if o := cfg.Servers[i].OpenAPI; o != nil && o.Spec != "" && !filepath.IsAbs(o.Spec) {
+			o.Spec = filepath.Join(filepath.Dir(path), o.Spec)
+		}
+	}
+
 	// Resolve secret references before validation so checks (non-empty
 	// tokens, header values free of CR/LF) see the real values.
 	if err := cfg.resolveSecrets(); err != nil {
@@ -323,6 +434,9 @@ func (c *Config) Validate() error {
 	for i, srv := range c.Servers {
 		if srv.Name == "" {
 			return fmt.Errorf("server %d: name is required", i)
+		}
+		if srv.OpenAPI != nil && srv.Transport != "openapi" {
+			return fmt.Errorf("server %q: openapi is only valid with transport \"openapi\"", srv.Name)
 		}
 		switch srv.Transport {
 		case "":
@@ -369,8 +483,12 @@ func (c *Config) Validate() error {
 					return fmt.Errorf("server %q: env: invalid entry %q (names must be non-empty without '=' or NUL; values must not contain NUL)", srv.Name, k)
 				}
 			}
+		case "openapi":
+			if err := c.validateOpenAPIServer(i); err != nil {
+				return err
+			}
 		default:
-			return fmt.Errorf("server %q: transport must be \"http\", \"sse\", or \"stdio\" (got %q)", srv.Name, srv.Transport)
+			return fmt.Errorf("server %q: transport must be \"http\", \"sse\", \"stdio\", or \"openapi\" (got %q)", srv.Name, srv.Transport)
 		}
 		if srv.RequestTimeout < 0 {
 			return fmt.Errorf("server %q: request_timeout must not be negative", srv.Name)
@@ -502,6 +620,66 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateOpenAPIServer checks an openapi server, loading its spec so a bad
+// document, an empty operation filter, or a missing base URL fails the load
+// (or reload) instead of the first request. It fills in URL from the spec
+// when unset and stores the parsed spec for the gateway.
+func (c *Config) validateOpenAPIServer(i int) error {
+	srv := &c.Servers[i]
+	o := srv.OpenAPI
+	if o == nil || o.Spec == "" {
+		return fmt.Errorf("server %q: openapi.spec is required with transport \"openapi\"", srv.Name)
+	}
+	if srv.Command != "" || len(srv.Args) > 0 || len(srv.Env) > 0 || srv.WorkDir != "" {
+		return fmt.Errorf("server %q: command, args, env and workdir are only valid with transport \"stdio\"", srv.Name)
+	}
+	if o.MaxResponseBytes < 0 {
+		return fmt.Errorf("server %q: openapi.max_response_bytes must not be negative", srv.Name)
+	}
+	for _, m := range o.Methods {
+		switch strings.ToUpper(m) {
+		case "GET", "PUT", "POST", "DELETE", "OPTIONS", "HEAD", "PATCH", "TRACE":
+		default:
+			return fmt.Errorf("server %q: openapi.methods: unknown HTTP method %q", srv.Name, m)
+		}
+	}
+	for _, list := range [][]string{o.IncludeOperations, o.ExcludeOperations} {
+		for _, p := range list {
+			if _, err := filepath.Match(p, ""); err != nil {
+				return fmt.Errorf("server %q: openapi: invalid operation pattern %q", srv.Name, p)
+			}
+		}
+	}
+	if err := validateHeaders(srv.Headers, fmt.Sprintf("server %q: headers", srv.Name)); err != nil {
+		return err
+	}
+
+	spec, err := LoadOpenAPISpec(o.Spec)
+	if err != nil {
+		return fmt.Errorf("server %q: %w", srv.Name, err)
+	}
+	if srv.URL == "" {
+		srv.URL = spec.ServerURL
+	}
+	u, err := url.Parse(srv.URL)
+	if srv.URL == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("server %q: url must be the API's absolute http(s) base URL (the spec's servers entry is %q)", srv.Name, spec.ServerURL)
+	}
+	if srv.TLS != nil {
+		if u.Scheme != "https" {
+			return fmt.Errorf("server %q: tls requires an https:// url (got %q)", srv.Name, srv.URL)
+		}
+		if _, err := srv.TLS.ClientConfig(); err != nil {
+			return fmt.Errorf("server %q: tls: %w", srv.Name, err)
+		}
+	}
+	if _, err := spec.BuildTools(o.Filter()); err != nil {
+		return fmt.Errorf("server %q: %w", srv.Name, err)
+	}
+	o.Parsed = spec
 	return nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/rohitgs28/mcpx/internal/integrity"
 	"github.com/rohitgs28/mcpx/internal/mcp"
 	"github.com/rohitgs28/mcpx/internal/metrics"
+	"github.com/rohitgs28/mcpx/internal/openapi"
 	"github.com/rohitgs28/mcpx/internal/policy"
 	"github.com/rohitgs28/mcpx/internal/stdio"
 	"github.com/rohitgs28/mcpx/internal/tracing"
@@ -96,18 +97,35 @@ func New(cfg *config.Config, pe *policy.Engine, al *audit.Logger, ts *integrity.
 
 	for _, sc := range cfg.Servers {
 		switch sc.Transport {
-		case "http", "sse":
-			target, err := url.Parse(sc.URL)
-			if err != nil {
-				return nil, fmt.Errorf("parsing URL for server %q: %w", sc.Name, err)
-			}
-			p := httputil.NewSingleHostReverseProxy(target)
-			transport, err := BackendTransport(sc)
-			if err != nil {
-				return nil, fmt.Errorf("server %q: tls: %w", sc.Name, err)
-			}
-			if transport != nil {
-				p.Transport = transport
+		case "http", "sse", "openapi":
+			var p *httputil.ReverseProxy
+			inject := sc.Headers
+			if sc.Transport == "openapi" {
+				// The REST API is wrapped by an MCP server living inside the
+				// gateway. Fronting it with the same reverse proxy as a remote
+				// backend gives it the full pipeline (tools/list inspection,
+				// caching, circuit breaker) with no special cases. Its headers
+				// go to the upstream API, not to this in-process hop.
+				srv, err := NewOpenAPIServer(sc)
+				if err != nil {
+					return nil, fmt.Errorf("server %q: %w", sc.Name, err)
+				}
+				p = httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: "openapi.mcpx.internal"})
+				p.Transport = openapi.HandlerTransport{Handler: srv}
+				inject = nil
+			} else {
+				target, err := url.Parse(sc.URL)
+				if err != nil {
+					return nil, fmt.Errorf("parsing URL for server %q: %w", sc.Name, err)
+				}
+				p = httputil.NewSingleHostReverseProxy(target)
+				transport, err := BackendTransport(sc)
+				if err != nil {
+					return nil, fmt.Errorf("server %q: tls: %w", sc.Name, err)
+				}
+				if transport != nil {
+					p.Transport = transport
+				}
 			}
 			// The stdlib flushes text/event-stream bodies immediately; the
 			// interval covers other streaming content types (e.g. ndjson).
@@ -127,7 +145,6 @@ func New(cfg *config.Config, pe *policy.Engine, al *audit.Logger, ts *integrity.
 			// director and replace any same-named client header, so a client
 			// can neither see nor override them.
 			orig := p.Director
-			inject := sc.Headers
 			p.Director = func(req *http.Request) {
 				orig(req)
 				for k, v := range inject {

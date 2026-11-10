@@ -1,0 +1,127 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Petstore", "version": "1.2.0" },
+  "servers": [
+    {
+      "url": "https://{region}.petstore.example.com/v1",
+      "variables": { "region": { "default": "eu", "enum": ["eu", "us"] } }
+    }
+  ],
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List pets",
+        "tags": ["pets"],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "maximum": 100 } },
+          { "name": "tags", "in": "query", "schema": { "type": "array", "items": { "type": "string" } } },
+          { "name": "ids", "in": "query", "explode": false, "schema": { "type": "array", "items": { "type": "integer" } } },
+          { "name": "X-Request-Source", "in": "header", "schema": { "type": "string" } },
+          { "name": "Authorization", "in": "header", "schema": { "type": "string" } },
+          { "name": "session", "in": "cookie", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "post": {
+        "operationId": "createPet",
+        "summary": "Create a pet",
+        "tags": ["pets"],
+        "requestBody": { "$ref": "#/components/requestBodies/NewPet" },
+        "responses": { "201": { "description": "created" } }
+      }
+    },
+    "/pets/{petId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/PetId" }
+      ],
+      "get": {
+        "operationId": "getPet",
+        "summary": "Get a pet",
+        "description": "Returns a single pet by id.",
+        "tags": ["pets"],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "delete": {
+        "operationId": "deletePet",
+        "summary": "Delete a pet",
+        "tags": ["pets", "admin"],
+        "responses": { "204": { "description": "deleted" } }
+      },
+      "patch": {
+        "summary": "Update a pet",
+        "tags": ["pets"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/merge-patch+json": { "schema": { "$ref": "#/components/schemas/PetPatch" } } }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/pets/batch": {
+      "put": {
+        "operationId": "replacePets",
+        "tags": ["admin"],
+        "deprecated": true,
+        "requestBody": {
+          "required": true,
+          "description": "All pets.",
+          "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Pet" } } } }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/categories/{id}/tree": {
+      "get": {
+        "operationId": "getCategoryTree",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "ok", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Category" } } } } }
+      }
+    },
+    "/uploads": {
+      "post": {
+        "operationId": "uploadPhoto",
+        "requestBody": { "content": { "multipart/form-data": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "ok" } }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "PetId": { "name": "petId", "in": "path", "required": true, "description": "The pet's id.", "schema": { "type": "string" } }
+    },
+    "requestBodies": {
+      "NewPet": {
+        "required": true,
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewPet" } } }
+      }
+    },
+    "schemas": {
+      "NewPet": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "example": "Rex" },
+          "species": { "type": "string", "enum": ["dog", "cat"] },
+          "owner": { "type": "string", "nullable": true },
+          "category": { "$ref": "#/components/schemas/Category" }
+        }
+      },
+      "Pet": {
+        "allOf": [ { "$ref": "#/components/schemas/NewPet" }, { "type": "object", "properties": { "id": { "type": "string" } } } ]
+      },
+      "PetPatch": {
+        "type": "object",
+        "properties": { "name": { "type": "string" }, "x-internal": { "type": "string" } },
+        "x-vendor": true
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "children": { "type": "array", "items": { "$ref": "#/components/schemas/Category" } }
+        }
+      }
+    }
+  }
+}
