@@ -53,8 +53,7 @@ Most MCP gateway solutions require Kubernetes clusters, Docker Desktop, or full 
 | **Binary size** | ~10 MB | Cluster | Docker image | Full gateway |
 | **Target users** | Devs & small teams | Enterprise Azure | Docker users | Existing Kong users |
 | **Prometheus metrics** | ✅ Built-in | Via adapter | Via Docker | Via plugin |
-| **Deep health checks** | ✅ Per-backend | ❌ | ❌ | Via plugin |
-| **License** | MIT | MIT | Apache 2.0 | Apache 2.0 |
+| **Deep health checks** | ✅ Per-backend | ❌ | ❌ | Via plugin || **License** | MIT | MIT | Apache 2.0 | Apache 2.0 |
 
 ## Quick Start
 
@@ -324,6 +323,56 @@ One shared child process serves all gateway clients: it is spawned lazily on fir
 
 Notifications return `202 Accepted` (mirroring the Streamable HTTP spec). Server-initiated messages (sampling, log notifications) are dropped with a log line - there is no single addressable client on a shared gateway.
 
+### 🔌 OpenAPI → MCP (Any REST API, No MCP Server Needed)
+
+Most products don't have an MCP server. They have a REST API. With `transport: openapi`, point mcpx at the API's OpenAPI 3.x spec and every operation becomes an MCP tool, with the whole gateway around it: auth, policies, argument rules, rate limiting, caching, circuit breaking, audit logs and metrics. You write no server code.
+
+```yaml
+servers:
+  - name: notes
+    transport: openapi
+    url: https://api.example.com/v1        # optional: defaults to the spec's servers[0]
+    headers:
+      Authorization: "Bearer ${env:NOTES_API_TOKEN}"   # sent to the API; clients never see it
+    request_timeout: 10s
+    openapi:
+      spec: specs/notes.openapi.yaml       # JSON or YAML, relative to the config file
+      methods: [GET, POST]                 # optional: e.g. [GET] for a read-only view
+      include_operations: ["list*", "get*", createNote]   # optional globs on tool name / operationId
+      exclude_tags: [admin]                # optional (also include_tags, exclude_operations)
+      max_response_bytes: 1048576          # optional (default 1 MiB)
+    policy:
+      tool_rules:
+        createNote:
+          args:
+            title: { required: true, regex: "^.{1,80}$" }
+```
+
+How operations map to tools:
+
+- **Name** comes from the `operationId`, or `method_path` (e.g. `get_notes_id`) when there is none. Policies, argument rules and cache rules refer to these names.
+- **Arguments:** path, query and header parameters become arguments. An object JSON request body is flattened into top-level arguments, so **argument rules can constrain body fields** like an amount or a recipient. Any other body is a single `body` argument. Local `$ref`s are inlined, and recursive schemas are cut off safely.
+- **Annotations:** HTTP semantics become MCP annotations. `GET` is `readOnlyHint`, and `DELETE`/`PUT` are `destructiveHint`, so clients can tell a lookup from a destructive call.
+- **Errors:** a `4xx` response comes back as a tool result with `isError`, so the model can fix its arguments. An unreachable API, a timeout or a `5xx` is a backend failure (`502`) that counts toward the circuit breaker.
+
+The integration is hardened in a few ways:
+
+- Path parameters are escaped into a single segment (`../` can't reach another endpoint).
+- Injected headers always override tool arguments.
+- Redirects to another host are not followed, so credentials can't leak.
+- Unknown arguments are rejected instead of silently dropped.
+- The client's own `Authorization` header is never forwarded.
+
+Try it locally with the bundled demo API:
+
+```bash
+go run ./examples/mock-rest &              # in-memory notes API on :3002
+go run ./cmd/mcpx -c examples/openapi.yaml
+curl -s localhost:8080/mcp/notes -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
+```
+
+The spec is re-read on every config reload (`SIGHUP`), and a broken spec rejects the reload. Only OpenAPI 3.x is supported. Convert Swagger 2.0 specs first, for example with `swagger2openapi`.
+
 ### ⚡ Circuit Breaker
 
 After a configurable number of consecutive backend failures (transport errors or `5xx`), the gateway fails fast with `503` instead of queueing requests against a dead upstream. After a cooldown, limited probe requests test recovery. State survives config hot-reloads.
@@ -519,6 +568,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan. Key upcoming work:
 - [x] Response caching for idempotent tools (LRU + TTL + single-flight)
 - [x] Secret injection for backend credentials (env/file references; no token passthrough)
 - [x] Backend mTLS (client certificates, private CA, server name override)
+- [x] OpenAPI → MCP: expose any REST API as MCP tools from its OpenAPI spec
 - [ ] WebSocket transport proxying
 - [ ] Web dashboard
 - [ ] Plugin system (Go + WASM)

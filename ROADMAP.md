@@ -36,6 +36,8 @@ Make mcpx the simplest, fastest way to secure MCP servers in production. One bin
 
 - [x] Server-Sent Events (SSE) proxy — streaming MCP transport (Streamable HTTP pass-through)
 - [ ] WebSocket proxy — bidirectional streaming MCP transport
+- [x] OpenAPI transport — expose any REST API as MCP tools from its OpenAPI 3.x spec (`transport: openapi`)
+- [ ] OpenAPI follow-ups — load specs from a URL, Swagger 2.0 input, `outputSchema`/`structuredContent` from response schemas
 - [x] Stdio transport — spawn and manage local MCP servers as child processes
 - [x] Transport auto-detection — streaming responses detected per response via Content-Type
 

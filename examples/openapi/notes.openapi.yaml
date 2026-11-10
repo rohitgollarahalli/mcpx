@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: Notes API
+  version: 1.0.0
+  description: In-memory notes service served by examples/mock-rest.
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: notes
+  - name: admin
+paths:
+  /notes:
+    get:
+      operationId: listNotes
+      summary: List notes
+      description: Search notes by text or tag. Returns newest first.
+      tags: [notes]
+      parameters:
+        - name: q
+          in: query
+          description: Case-insensitive text to search for in titles and bodies.
+          schema: { type: string }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Matching notes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Note" }
+    post:
+      operationId: createNote
+      summary: Create a note
+      tags: [notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewNote" }
+      responses:
+        "201":
+          description: The created note.
+  /notes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The note's id.
+        schema: { type: string }
+    get:
+      operationId: getNote
+      summary: Get a note
+      tags: [notes]
+      responses:
+        "200": { description: The note. }
+        "404": { description: Not found. }
+    patch:
+      operationId: updateNote
+      summary: Update a note
+      tags: [notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewNote" }
+      responses:
+        "200": { description: The updated note. }
+    delete:
+      operationId: deleteNote
+      summary: Delete a note
+      tags: [notes, admin]
+      responses:
+        "204": { description: Deleted. }
+components:
+  schemas:
+    NewNote:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 80
+          example: Groceries
+        body:
+          type: string
+        tags:
+          type: array
+          items: { type: string }
+    Note:
+      allOf:
+        - $ref: "#/components/schemas/NewNote"
+        - type: object
+          properties:
+            id: { type: string }
+            createdAt: { type: string, format: date-time }

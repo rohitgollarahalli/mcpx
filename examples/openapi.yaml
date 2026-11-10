@@ -1,0 +1,50 @@
+# Turn a REST API into a secured MCP server - no MCP server code needed.
+#
+# mcpx reads the API's OpenAPI spec and exposes every operation as an MCP
+# tool. Calls go through the full gateway: auth, policy, argument rules,
+# rate limiting, caching, circuit breaking, audit, and metrics.
+#
+# Try it:
+#   go run ./examples/mock-rest &                # the REST API on :3002
+#   go run ./cmd/mcpx -c examples/openapi.yaml
+#   curl -s localhost:8080/mcp/notes -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
+#   curl -s localhost:8080/mcp/notes -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
+#     "params":{"name":"listNotes","arguments":{"q":"groceries"}}}' | jq
+#
+# Then point Claude, Cursor, or any MCP client at http://localhost:8080/mcp/notes
+
+listen: ":8080"
+
+servers:
+  - name: notes
+    transport: openapi
+    # Base URL of the REST API. Optional: defaults to the spec's first
+    # `servers` entry.
+    url: http://localhost:3002
+    # Sent on every upstream API call. Clients never see the credential.
+    # In production use a secret reference, e.g. "Bearer ${env:NOTES_TOKEN}".
+    headers:
+      Authorization: "Bearer demo-token"
+    request_timeout: 10s
+    openapi:
+      spec: openapi/notes.openapi.yaml   # relative to this file
+      # Optional filters (glob patterns on tool name / operationId, tags,
+      # or HTTP methods). `methods: [GET]` would expose a read-only API.
+      exclude_tags: [admin]              # hides deleteNote entirely
+    policy:
+      # Per-tool argument rules work on request-body fields too: object
+      # bodies are flattened into top-level tool arguments.
+      tool_rules:
+        createNote:
+          args:
+            title:
+              required: true
+              regex: "^[^<>]{1,80}$"
+
+audit:
+  enabled: true
+  output: stdout
+
+inspection:
+  tool_integrity: warn
+  filter_tools_list: true

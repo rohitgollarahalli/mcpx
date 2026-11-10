@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `transport: openapi` turns any REST API into an MCP server from its
+  OpenAPI 3.x spec (JSON or YAML). Every operation becomes a tool, and
+  calls go through the full gateway: auth, policy, argument rules, rate
+  limiting, caching, circuit breaker, audit, and metrics. Object request
+  bodies are flattened so argument rules can constrain body fields. Tools
+  carry MCP annotations derived from the HTTP method. Operations can be
+  filtered by name, tag, or HTTP method. Credentials come from
+  `servers[].headers` and are never exposed to clients or sent across
+  redirects to another host. Includes a runnable demo
+  (`examples/openapi.yaml`, `examples/mock-rest`).
 - Grafana dashboard for the gateway (`deploy/grafana/dashboards/mcpx.json`)
   covering traffic, latency percentiles, policy decisions, denied tools, auth
   failures, rate-limit hits, circuit-breaker state and cache hit ratio, with
