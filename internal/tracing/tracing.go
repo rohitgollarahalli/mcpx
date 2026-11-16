@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,7 +29,7 @@ import (
 )
 
 // ScopeName is the instrumentation scope reported on spans mcpx creates.
-const ScopeName = "github.com/rohitgs28/mcpx"
+const ScopeName = "github.com/rohitgollarahalli/mcpx"
 
 // defaultServiceName is used when tracing.service_name is unset.
 const defaultServiceName = "mcpx"

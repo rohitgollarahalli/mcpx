@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 // OAuthValidator validates signed JWT access tokens (RSA, ECDSA, or Ed25519) for an MCP resource server.

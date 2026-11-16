@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 type Engine struct {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 // Severity ranks a finding. Higher is worse.

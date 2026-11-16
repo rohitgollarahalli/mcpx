@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/cache"
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/cache"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 // CacheHeader tells a client whether its response came from the gateway's

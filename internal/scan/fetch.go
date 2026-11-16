@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/mcp"
-	"github.com/rohitgs28/mcpx/internal/stdio"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/stdio"
 )
 
 // protocolVersion is the MCP revision the scanner announces.

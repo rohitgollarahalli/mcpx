@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 type Logger struct {

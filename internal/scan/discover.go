@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 // Server is one MCP server found in a client or gateway config file.

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 func TestParseRequest_ToolsCall(t *testing.T) {

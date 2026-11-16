@@ -4,7 +4,7 @@ mcpx is a security gateway, so it should be explicit about **what it defends, ho
 
 ## Reporting a vulnerability
 
-Please report security issues privately via [GitHub Security Advisories](https://github.com/rohitgs28/mcpx/security/advisories/new) rather than a public issue. We aim to acknowledge within 72 hours.
+Please report security issues privately via [GitHub Security Advisories](https://github.com/rohitgollarahalli/mcpx/security/advisories/new) rather than a public issue. We aim to acknowledge within 72 hours.
 
 ## Design stance
 

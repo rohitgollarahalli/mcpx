@@ -2,8 +2,8 @@
 
 **Secure your MCP servers in 5 minutes. One binary. One config file. No infrastructure to run.**
 
-[![CI](https://github.com/rohitgs28/mcpx/workflows/CI/badge.svg)](https://github.com/rohitgs28/mcpx/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rohitgs28/mcpx)](https://goreportcard.com/report/github.com/rohitgs28/mcpx)
+[![CI](https://github.com/rohitgollarahalli/mcpx/workflows/CI/badge.svg)](https://github.com/rohitgollarahalli/mcpx/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rohitgollarahalli/mcpx)](https://goreportcard.com/report/github.com/rohitgollarahalli/mcpx)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built with Go](https://img.shields.io/badge/built_with-Go-00ADD8.svg)](https://go.dev)
 
@@ -44,7 +44,7 @@ Server A    Server B
 Are the MCP servers you've already installed safe? Find out with one command. You don't need to deploy a gateway or change any config:
 
 ```bash
-go install github.com/rohitgs28/mcpx/cmd/mcpx@latest
+go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
 mcpx scan
 ```
 
@@ -89,7 +89,7 @@ The scanner only runs the MCP handshake and `tools/list`, and **never calls a to
 ```yaml
 - uses: actions/setup-go@v5
   with: { go-version: '1.22' }
-- run: go install github.com/rohitgs28/mcpx/cmd/mcpx@latest
+- run: go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
 - run: mcpx scan --format sarif --fail-on none .mcp.json > mcpx.sarif
 - uses: github/codeql-action/upload-sarif@v3
   with: { sarif_file: mcpx.sarif }
@@ -116,12 +116,12 @@ Most MCP gateway solutions require Kubernetes clusters, Docker Desktop, or full 
 
 ```bash
 # Install from source
-git clone https://github.com/rohitgs28/mcpx
+git clone https://github.com/rohitgollarahalli/mcpx
 cd mcpx
 go build -o mcpx ./cmd/mcpx
 
 # Or install directly
-go install github.com/rohitgs28/mcpx/cmd/mcpx@latest
+go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
 
 # Run with config
 ./mcpx -c mcpx.yaml
@@ -608,7 +608,7 @@ Every request is inspected at the MCP protocol level. The gateway parses JSON-RP
 
 ## Security
 
-mcpx is explicit about what it defends and what it doesn't. See **[SECURITY.md](SECURITY.md)** for the full threat model - which MCP attacks (rug-pulls, token passthrough, confused deputy, schema poisoning) it mitigates and how, plus the deliberate non-goals (it does **not** do bypassable regex/LLM prompt-injection scanning). Report vulnerabilities via [GitHub Security Advisories](https://github.com/rohitgs28/mcpx/security/advisories/new).
+mcpx is explicit about what it defends and what it doesn't. See **[SECURITY.md](SECURITY.md)** for the full threat model - which MCP attacks (rug-pulls, token passthrough, confused deputy, schema poisoning) it mitigates and how, plus the deliberate non-goals (it does **not** do bypassable regex/LLM prompt-injection scanning). Report vulnerabilities via [GitHub Security Advisories](https://github.com/rohitgollarahalli/mcpx/security/advisories/new).
 
 ## Roadmap
 

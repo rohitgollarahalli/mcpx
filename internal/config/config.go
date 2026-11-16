@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/openapi"
+	"github.com/rohitgollarahalli/mcpx/internal/openapi"
 	"gopkg.in/yaml.v3"
 )
 

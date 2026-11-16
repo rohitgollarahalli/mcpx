@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 // helper builds a Limiter from a config snippet.

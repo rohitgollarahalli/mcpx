@@ -12,7 +12,7 @@ Thanks for your interest in mcpx. This document covers how to set up, develop, t
 ### Setup
 
 ```bash
-git clone https://github.com/rohitgs28/mcpx
+git clone https://github.com/rohitgollarahalli/mcpx
 cd mcpx
 go build -o mcpx ./cmd/mcpx
 ```

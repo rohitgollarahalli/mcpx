@@ -291,7 +291,7 @@ func (r *Report) WriteSARIF(w io.Writer) error {
 			"tool": map[string]any{"driver": map[string]any{
 				"name":            "mcpx",
 				"semanticVersion": r.Version,
-				"informationUri":  "https://github.com/rohitgs28/mcpx",
+				"informationUri":  "https://github.com/rohitgollarahalli/mcpx",
 				"rules":           rules,
 			}},
 			"results": results,

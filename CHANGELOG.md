@@ -115,4 +115,4 @@ backends. Single static binary, single YAML config.
 - Structured JSON audit logging with `X-Request-ID` correlation.
 - CORS support and hot config reload (SIGHUP + `-watch`).
 
-[0.1.0]: https://github.com/rohitgs28/mcpx/releases/tag/v0.1.0
+[0.1.0]: https://github.com/rohitgollarahalli/mcpx/releases/tag/v0.1.0

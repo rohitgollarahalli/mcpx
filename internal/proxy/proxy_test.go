@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/audit"
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/integrity"
-	"github.com/rohitgs28/mcpx/internal/mcp"
-	"github.com/rohitgs28/mcpx/internal/metrics"
-	"github.com/rohitgs28/mcpx/internal/policy"
-	"github.com/rohitgs28/mcpx/internal/proxy"
-	"github.com/rohitgs28/mcpx/internal/stdio"
+	"github.com/rohitgollarahalli/mcpx/internal/audit"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/integrity"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/metrics"
+	"github.com/rohitgollarahalli/mcpx/internal/policy"
+	"github.com/rohitgollarahalli/mcpx/internal/proxy"
+	"github.com/rohitgollarahalli/mcpx/internal/stdio"
 )
 
 // upstream returns a test MCP server whose tools/list body can be swapped

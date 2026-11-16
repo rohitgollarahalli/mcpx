@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 // TestMain doubles as a fake stdio MCP server: re-executed with

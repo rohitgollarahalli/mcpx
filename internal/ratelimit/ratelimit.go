@@ -9,9 +9,9 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/httperr"
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/httperr"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 type Limiter struct {

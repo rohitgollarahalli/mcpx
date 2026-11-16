@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/middleware"
+	"github.com/rohitgollarahalli/mcpx/internal/middleware"
 )
 
 func TestRequestID_GeneratesID(t *testing.T) {

@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/integrity"
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/integrity"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 // Options configures a scan.
