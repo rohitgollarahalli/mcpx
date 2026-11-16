@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/httperr"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/httperr"
 )
 
 func Middleware(cfg config.AuthConfig) func(http.Handler) http.Handler {

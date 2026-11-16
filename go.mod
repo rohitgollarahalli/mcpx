@@ -1,4 +1,4 @@
-module github.com/rohitgs28/mcpx
+module github.com/rohitgollarahalli/mcpx
 
 go 1.22.0
 

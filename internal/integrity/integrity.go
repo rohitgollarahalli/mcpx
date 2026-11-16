@@ -6,7 +6,7 @@
 // pinned baseline is reported as a violation. This deterministically detects
 // "rug-pull" tool mutation (CVE-2025-54136), cross-server shadowing, and
 // full-schema poisoning — attacks where a server silently changes a tool the
-// client already approved. See https://github.com/rohitgs28/mcpx ROADMAP.
+// client already approved. See https://github.com/rohitgollarahalli/mcpx ROADMAP.
 //
 // Hashing the entire tool object (not just the description) is deliberate:
 // poisoning payloads have been demonstrated in parameter names, enums, and
@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/rohitgs28/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
 )
 
 // Mode controls how the gateway reacts to a tool-schema change.
@@ -106,6 +106,11 @@ func (s *Store) Check(server string, tools []json.RawMessage) []Violation {
 	}
 	return violations
 }
+
+// Hash returns the canonical SHA-256 of a tool definition: the same value the
+// gateway pins, independent of key order and whitespace. It lets other
+// components (such as `mcpx scan` baselines) compare tools consistently.
+func Hash(raw json.RawMessage) string { return canonicalHash(raw) }
 
 // canonicalHash returns a stable SHA-256 over a tool's JSON, independent of
 // key ordering or insignificant whitespace. json.Marshal sorts object keys, so

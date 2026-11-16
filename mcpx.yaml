@@ -1,5 +1,5 @@
 # mcpx gateway configuration
-# Full documentation: https://github.com/rohitgs28/mcpx
+# Full documentation: https://github.com/rohitgollarahalli/mcpx
 
 listen: ":8080"
 

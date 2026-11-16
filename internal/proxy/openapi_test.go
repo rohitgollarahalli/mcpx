@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/audit"
-	"github.com/rohitgs28/mcpx/internal/breaker"
-	"github.com/rohitgs28/mcpx/internal/cache"
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/integrity"
-	"github.com/rohitgs28/mcpx/internal/metrics"
-	"github.com/rohitgs28/mcpx/internal/policy"
-	"github.com/rohitgs28/mcpx/internal/proxy"
-	"github.com/rohitgs28/mcpx/internal/stdio"
+	"github.com/rohitgollarahalli/mcpx/internal/audit"
+	"github.com/rohitgollarahalli/mcpx/internal/breaker"
+	"github.com/rohitgollarahalli/mcpx/internal/cache"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/integrity"
+	"github.com/rohitgollarahalli/mcpx/internal/metrics"
+	"github.com/rohitgollarahalli/mcpx/internal/policy"
+	"github.com/rohitgollarahalli/mcpx/internal/proxy"
+	"github.com/rohitgollarahalli/mcpx/internal/stdio"
 )
 
 // paymentsSpec is a small REST API: a read, a write with a JSON body, and a

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 func TestNewDisabled(t *testing.T) {

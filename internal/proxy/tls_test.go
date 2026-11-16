@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 // testPKI is a throwaway CA with one server and one client certificate,

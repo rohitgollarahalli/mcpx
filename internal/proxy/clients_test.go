@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/auth"
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/mcp"
-	"github.com/rohitgs28/mcpx/internal/proxy"
+	"github.com/rohitgollarahalli/mcpx/internal/auth"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/proxy"
 )
 
 // listToolsAs issues a tools/list request carrying an authenticated client

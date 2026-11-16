@@ -16,7 +16,7 @@ Kubernetes, no Docker Desktop: one static binary, one YAML file.
 ## Install
 
 ```bash
-go install github.com/rohitgs28/mcpx/cmd/mcpx@v0.1.0
+go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@v0.1.0
 ```
 
 Or download a prebuilt binary for your platform from the assets below.
@@ -28,5 +28,5 @@ docker compose up --build
 # or run the mock server + gateway locally; see the README quick start.
 ```
 
-See the [README](https://github.com/rohitgs28/mcpx#readme) for full configuration
-and the [threat model](https://github.com/rohitgs28/mcpx/blob/main/SECURITY.md).
+See the [README](https://github.com/rohitgollarahalli/mcpx#readme) for full configuration
+and the [threat model](https://github.com/rohitgollarahalli/mcpx/blob/main/SECURITY.md).

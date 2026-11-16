@@ -14,8 +14,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/rohitgs28/mcpx/internal/auth"
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/auth"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/openapi"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/openapi"
 )
 
 // NewOpenAPIServer builds the in-process MCP server for an openapi backend:

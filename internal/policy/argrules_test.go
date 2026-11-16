@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/mcp"
-	"github.com/rohitgs28/mcpx/internal/policy"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/mcp"
+	"github.com/rohitgollarahalli/mcpx/internal/policy"
 )
 
 func makeCallWithArgs(toolName string, args map[string]any) *mcp.Request {

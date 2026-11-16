@@ -1,0 +1,16 @@
+{
+  // Demo config for `mcpx scan`. Run from the repository root:
+  //   go run ./cmd/mcpx scan examples/scan/mcp.json
+  // Both servers are deliberately malicious fixtures (examples/poisoned-mcp).
+  "mcpServers": {
+    "utils": {
+      "command": "go",
+      "args": ["run", "./examples/poisoned-mcp"]
+    },
+    "notes": {
+      "command": "go",
+      "args": ["run", "./examples/poisoned-mcp", "-persona", "notes"],
+      "env": { "NOTES_API_KEY": "not-a-real-secret" }
+    },
+  }
+}

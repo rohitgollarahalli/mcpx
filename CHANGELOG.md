@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `mcpx scan`: a zero-config security scanner for the MCP servers you
+  already use. It discovers servers in Claude Desktop, Claude Code, Cursor,
+  VS Code, Windsurf, Gemini CLI, Cline, and `mcpx.yaml` configs, runs the
+  MCP handshake and `tools/list` against each (it never calls a tool), and
+  checks every string in every tool definition and the server instructions
+  with 12 rules. The rules cover hidden Unicode (text smuggled in tag
+  characters is decoded and shown), prompt injection, sensitive-file
+  references, exfiltration, cross-server tool shadowing, name collisions,
+  encoded payloads, and rug pulls against a `--baseline` file that uses the
+  same canonical hash as tool integrity pinning. Output is text, JSON, or
+  SARIF 2.1.0. `--fail-on` sets the CI exit code. `--emit-config` generates
+  an `mcpx.yaml` that fronts the scanned servers, denies every
+  high/critical tool, and enforces integrity pinning, without copying
+  secret values. Includes a deliberately poisoned demo server
+  (`examples/poisoned-mcp`, `examples/scan/mcp.json`).
 - `transport: openapi` turns any REST API into an MCP server from its
   OpenAPI 3.x spec (JSON or YAML). Every operation becomes a tool, and
   calls go through the full gateway: auth, policy, argument rules, rate
@@ -100,4 +115,4 @@ backends. Single static binary, single YAML config.
 - Structured JSON audit logging with `X-Request-ID` correlation.
 - CORS support and hot config reload (SIGHUP + `-watch`).
 
-[0.1.0]: https://github.com/rohitgs28/mcpx/releases/tag/v0.1.0
+[0.1.0]: https://github.com/rohitgollarahalli/mcpx/releases/tag/v0.1.0

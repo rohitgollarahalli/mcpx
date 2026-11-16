@@ -9,6 +9,7 @@
 //	mcpx -c mcpx.yaml -watch          # hot-reload on file change
 //	mcpx -c mcpx.yaml -watch-interval 5s
 //	mcpx --version
+//	mcpx scan                         # scan local MCP client configs for tool poisoning
 //
 // Send SIGHUP to the running process to force a reload at any time.
 package main
@@ -26,27 +27,32 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/audit"
-	"github.com/rohitgs28/mcpx/internal/auth"
-	"github.com/rohitgs28/mcpx/internal/breaker"
-	"github.com/rohitgs28/mcpx/internal/cache"
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/cors"
-	"github.com/rohitgs28/mcpx/internal/health"
-	"github.com/rohitgs28/mcpx/internal/httperr"
-	"github.com/rohitgs28/mcpx/internal/integrity"
-	"github.com/rohitgs28/mcpx/internal/metrics"
-	"github.com/rohitgs28/mcpx/internal/middleware"
-	"github.com/rohitgs28/mcpx/internal/policy"
-	"github.com/rohitgs28/mcpx/internal/proxy"
-	"github.com/rohitgs28/mcpx/internal/ratelimit"
-	"github.com/rohitgs28/mcpx/internal/stdio"
-	"github.com/rohitgs28/mcpx/internal/tracing"
+	"github.com/rohitgollarahalli/mcpx/internal/audit"
+	"github.com/rohitgollarahalli/mcpx/internal/auth"
+	"github.com/rohitgollarahalli/mcpx/internal/breaker"
+	"github.com/rohitgollarahalli/mcpx/internal/cache"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/cors"
+	"github.com/rohitgollarahalli/mcpx/internal/health"
+	"github.com/rohitgollarahalli/mcpx/internal/httperr"
+	"github.com/rohitgollarahalli/mcpx/internal/integrity"
+	"github.com/rohitgollarahalli/mcpx/internal/metrics"
+	"github.com/rohitgollarahalli/mcpx/internal/middleware"
+	"github.com/rohitgollarahalli/mcpx/internal/policy"
+	"github.com/rohitgollarahalli/mcpx/internal/proxy"
+	"github.com/rohitgollarahalli/mcpx/internal/ratelimit"
+	"github.com/rohitgollarahalli/mcpx/internal/stdio"
+	"github.com/rohitgollarahalli/mcpx/internal/tracing"
 )
 
 const version = "0.1.0"
 
 func main() {
+	// Subcommands. The gateway itself keeps its flag-only interface.
+	if len(os.Args) > 1 && os.Args[1] == "scan" {
+		os.Exit(runScan(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	// CLI flags
 	configPath := flag.String("c", "mcpx.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")

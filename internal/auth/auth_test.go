@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rohitgs28/mcpx/internal/auth"
-	"github.com/rohitgs28/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/auth"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
 )
 
 func okHandler() http.Handler {

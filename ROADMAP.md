@@ -68,6 +68,7 @@ Make mcpx the simplest, fastest way to secure MCP servers in production. One bin
 
 - [ ] Plugin system — custom middleware in Go or WASM
 - [ ] Web dashboard — real-time request monitoring
+- [x] `mcpx scan` — discover MCP servers in local client configs and detect tool poisoning, shadowing, hidden Unicode, and rug pulls (text/JSON/SARIF)
 - [ ] CLI companion — `mcpx status`, `mcpx logs`, `mcpx test`
 - [ ] Terraform provider for declarative config
 - [ ] Helm chart for Kubernetes deployments

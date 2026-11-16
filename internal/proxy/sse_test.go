@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rohitgs28/mcpx/internal/config"
-	"github.com/rohitgs28/mcpx/internal/integrity"
+	"github.com/rohitgollarahalli/mcpx/internal/config"
+	"github.com/rohitgollarahalli/mcpx/internal/integrity"
 )
 
 // TestGateway_StreamsSSEIncrementally proves the gateway forwards SSE events
