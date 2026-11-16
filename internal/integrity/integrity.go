@@ -107,6 +107,11 @@ func (s *Store) Check(server string, tools []json.RawMessage) []Violation {
 	return violations
 }
 
+// Hash returns the canonical SHA-256 of a tool definition: the same value the
+// gateway pins, independent of key order and whitespace. It lets other
+// components (such as `mcpx scan` baselines) compare tools consistently.
+func Hash(raw json.RawMessage) string { return canonicalHash(raw) }
+
 // canonicalHash returns a stable SHA-256 over a tool's JSON, independent of
 // key ordering or insignificant whitespace. json.Marshal sorts object keys, so
 // decoding to any and re-encoding yields a canonical form. Invalid JSON hashes

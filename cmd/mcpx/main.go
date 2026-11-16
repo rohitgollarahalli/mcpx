@@ -9,6 +9,7 @@
 //	mcpx -c mcpx.yaml -watch          # hot-reload on file change
 //	mcpx -c mcpx.yaml -watch-interval 5s
 //	mcpx --version
+//	mcpx scan                         # scan local MCP client configs for tool poisoning
 //
 // Send SIGHUP to the running process to force a reload at any time.
 package main
@@ -47,6 +48,11 @@ import (
 const version = "0.1.0"
 
 func main() {
+	// Subcommands. The gateway itself keeps its flag-only interface.
+	if len(os.Args) > 1 && os.Args[1] == "scan" {
+		os.Exit(runScan(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	// CLI flags
 	configPath := flag.String("c", "mcpx.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
