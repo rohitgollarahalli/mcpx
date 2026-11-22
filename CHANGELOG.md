@@ -93,6 +93,10 @@ release includes everything since the project started.
 
 - Overlapping reloads (SIGHUP and `-watch`) are serialized, and an older
   load can no longer overwrite a newer config.
+- `-watch` no longer reloads a config file caught mid-save. A save that
+  truncates before writing could be read as an empty file, which is a valid
+  config with no servers, so the gateway briefly dropped every backend. Empty
+  files are skipped, and a read is discarded if the file changed during it.
 
 ### Security
 
