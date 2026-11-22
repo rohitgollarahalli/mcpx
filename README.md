@@ -395,7 +395,7 @@ servers:
       Authorization: "Bearer ${env:NOTES_API_TOKEN}"   # sent to the API; clients never see it
     request_timeout: 10s
     openapi:
-      spec: specs/notes.openapi.yaml       # JSON or YAML, relative to the config file
+      spec: specs/notes.openapi.yaml       # JSON or YAML: a path relative to the config file, or an http(s):// URL
       methods: [GET, POST]                 # optional: e.g. [GET] for a read-only view
       include_operations: ["list*", "get*", createNote]   # optional globs on tool name / operationId
       exclude_tags: [admin]                # optional (also include_tags, exclude_operations)
@@ -430,7 +430,16 @@ go run ./cmd/mcpx -c examples/openapi.yaml
 curl -s localhost:8080/mcp/notes -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 ```
 
-The spec is re-read on every config reload (`SIGHUP`), and a broken spec rejects the reload. Only OpenAPI 3.x is supported. Convert Swagger 2.0 specs first, for example with `swagger2openapi`.
+The spec can also be fetched from a URL (`spec: https://api.example.com/openapi.json`), so the gateway follows the API's published spec instead of a copy that drifts. The fetch:
+
+- needs a `200` response within 30 seconds and rejects specs over 16 MiB
+- verifies TLS against the system trust store and refuses redirects from `https` to `http`
+- sends no credentials (a URL with `user:pass@` is rejected), so a spec that needs auth to download must be saved to a file for now
+- keeps the query string out of errors and logs (the URL path is shown, so don't put tokens in it)
+
+Because tool calls carry your injected `headers`, a fetched spec only picks the base URL when that's safe. The spec's `servers[0]` must be on the same host as the spec URL, and it must not downgrade `https` to `http`. A spec fetched over plain `http` can't choose the base URL at all when `headers` are set. Otherwise, set `url` explicitly. `mcpx scan` never fetches spec URLs.
+
+The spec is re-read (or re-fetched) on every config reload (`SIGHUP`), and a broken or unreachable spec rejects the reload while the running config stays in place. A spec URL that can't be reached at startup stops the gateway from starting. Only OpenAPI 3.x is supported. Convert Swagger 2.0 specs first, for example with `swagger2openapi`.
 
 ### ⚡ Circuit Breaker
 

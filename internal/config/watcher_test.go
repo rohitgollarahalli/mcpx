@@ -151,3 +151,38 @@ func TestWatch_CancelStops(t *testing.T) {
 		t.Fatal("Watch did not return after context cancel")
 	}
 }
+
+// A config that fails to load because of something outside the file (a spec
+// URL that is briefly down, here a missing spec file) is retried on later
+// ticks without the file changing again, and the failure is reported once.
+func TestWatch_RetriesFailedLoadUntilItSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mcpx.yaml")
+	writeFile(t, path, minimalYAML)
+
+	var errs atomic.Int32
+	gotCfg := make(chan *Config, 4)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go Watch(ctx, path, 20*time.Millisecond, func(c *Config) error {
+		gotCfg <- c
+		return nil
+	}, func(error) { errs.Add(1) })
+
+	time.Sleep(150 * time.Millisecond)
+	writeFile(t, path, `{"servers": [{"name": "p", "transport": "openapi", "openapi": {"spec": "pets.json"}}]}`)
+	time.Sleep(200 * time.Millisecond) // several failing ticks
+	if n := errs.Load(); n != 1 {
+		t.Fatalf("errors reported = %d, want exactly 1", n)
+	}
+
+	writeFile(t, filepath.Join(dir, "pets.json"), testSpec) // config file untouched
+	select {
+	case c := <-gotCfg:
+		if len(c.Servers) != 1 || c.Servers[0].OpenAPI.Parsed == nil {
+			t.Errorf("unexpected config after retry: %+v", c.Servers)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher did not retry the failed load")
+	}
+}

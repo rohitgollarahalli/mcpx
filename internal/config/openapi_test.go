@@ -1,11 +1,17 @@
 package config
 
 import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testSpec = `{
@@ -145,5 +151,150 @@ func TestJSONCompatibleStringifiesKeys(t *testing.T) {
 	want := map[string]any{"responses": map[string]any{"200": map[string]any{"x": []any{map[string]any{"true": 1}}}}}
 	if got := jsonCompatible(in); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v", got)
+	}
+}
+
+func TestOpenAPISpecFromURL(t *testing.T) {
+	yamlSpec := "openapi: 3.0.3\ninfo: {title: Pets, version: '1.0'}\nservers: [{url: 'https://api.pets.example.com/v1'}]\npaths:\n  /pets:\n    get: {operationId: listPets}\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/openapi.json":
+			_, _ = io.WriteString(w, testSpec)
+		case "/openapi.yaml":
+			_, _ = io.WriteString(w, yamlSpec)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	// The specs name a base URL on another host, so url must be explicit.
+	for _, path := range []string{"/openapi.json", "/openapi.yaml"} {
+		cfg, err := writeOpenAPIConfig(t, "", `{"name": "p", "transport": "openapi", "url": "https://api.pets.example.com/v1", "openapi": {"spec": "`+srv.URL+path+`"}}`)
+		if err != nil {
+			t.Fatalf("%s: Load: %v", path, err)
+		}
+		sc := cfg.Servers[0]
+		if sc.OpenAPI.Spec != srv.URL+path {
+			t.Errorf("%s: spec URL rewritten to %q", path, sc.OpenAPI.Spec)
+		}
+		if sc.OpenAPI.Parsed == nil || sc.URL != "https://api.pets.example.com/v1" {
+			t.Errorf("%s: parsed=%v url=%q", path, sc.OpenAPI.Parsed != nil, sc.URL)
+		}
+	}
+
+	_, err := writeOpenAPIConfig(t, "", `{"name": "p", "transport": "openapi", "openapi": {"spec": "`+srv.URL+`/missing?token=s3cret"}}`)
+	if err == nil || !strings.Contains(err.Error(), "404") {
+		t.Fatalf("missing spec: err = %v, want a 404", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaks the query string: %v", err)
+	}
+}
+
+func TestOpenAPISpecURLLimits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/huge":
+			_, _ = w.Write(bytes.Repeat([]byte(" "), MaxOpenAPISpecBytes+1))
+		case "/slow":
+			time.Sleep(500 * time.Millisecond)
+			_, _ = io.WriteString(w, testSpec)
+		}
+	}))
+	defer srv.Close()
+
+	if _, err := LoadOpenAPISpec(srv.URL + "/huge"); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("oversized spec: err = %v", err)
+	}
+
+	defer func(d time.Duration) { openAPIFetchTimeout = d }(openAPIFetchTimeout)
+	openAPIFetchTimeout = 50 * time.Millisecond
+	if _, err := LoadOpenAPISpec(srv.URL + "/slow"); err == nil || !strings.Contains(err.Error(), "fetching") {
+		t.Errorf("slow spec: err = %v, want a fetch timeout", err)
+	}
+}
+
+func TestRedactSpecURL(t *testing.T) {
+	cases := map[string]string{
+		"https://api.example.com/openapi.json":               "https://api.example.com/openapi.json",
+		"https://user:pass@api.example.com/spec.yaml":        "https://api.example.com/spec.yaml",
+		"https://api.example.com/spec.json?api_key=abc#frag": "https://api.example.com/spec.json?REDACTED",
+	}
+	for in, want := range cases {
+		if got := redactSpecURL(in); got != want {
+			t.Errorf("redactSpecURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if !IsSpecURL("HTTPS://x.example.com/s.json") || IsSpecURL("specs/https.json") {
+		t.Error("IsSpecURL misclassifies")
+	}
+}
+
+func TestOpenAPIBaseURLFromFetchedSpec(t *testing.T) {
+	var base string // servers[0].url the spec advertises
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, strings.Replace(testSpec, "https://api.pets.example.com/v1", base, 1))
+	}))
+	defer srv.Close()
+	spec := `"openapi": {"spec": "` + srv.URL + `/openapi.json"}`
+	cases := []struct {
+		name, base, server, want string
+	}{
+		{"same host", srv.URL + "/v1", `{"name": "p", "transport": "openapi", ` + spec + `}`, ""},
+		{"other host", "https://evil.example/v1", `{"name": "p", "transport": "openapi", ` + spec + `}`, "another host"},
+		{"other host, explicit url", "https://evil.example/v1", `{"name": "p", "transport": "openapi", "url": "https://api.example.com", ` + spec + `}`, ""},
+		{"http spec with credentials", srv.URL + "/v1", `{"name": "p", "transport": "openapi", "headers": {"Authorization": "Bearer t"}, ` + spec + `}`, "plain http"},
+	}
+	for _, c := range cases {
+		base = c.base
+		_, err := writeOpenAPIConfig(t, "", c.server)
+		switch {
+		case c.want == "" && err != nil:
+			t.Errorf("%s: unexpected error: %v", c.name, err)
+		case c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)):
+			t.Errorf("%s: err = %v, want it to mention %q", c.name, err, c.want)
+		}
+	}
+
+	httpsSpec, _ := url.Parse("https://api.example.com/openapi.json")
+	httpBase, _ := url.Parse("http://api.example.com/v1")
+	if err := checkRemoteBaseURL(httpsSpec.String(), httpBase, false); err == nil || !strings.Contains(err.Error(), "downgrades") {
+		t.Errorf("https spec with http base: err = %v", err)
+	}
+}
+
+func TestSpecURLRedirectsAndCredentials(t *testing.T) {
+	https, _ := http.NewRequest(http.MethodGet, "https://api.example.com/openapi.json", nil)
+	plain, _ := http.NewRequest(http.MethodGet, "http://api.example.com/openapi.json", nil)
+	otherHTTPS, _ := http.NewRequest(http.MethodGet, "https://cdn.example.com/openapi.json", nil)
+	if err := checkSpecRedirect(plain, []*http.Request{https}); err == nil {
+		t.Error("https -> http redirect was allowed")
+	}
+	if err := checkSpecRedirect(otherHTTPS, []*http.Request{https}); err != nil {
+		t.Errorf("https -> https redirect refused: %v", err)
+	}
+	if err := checkSpecRedirect(otherHTTPS, []*http.Request{https, https, https, https, https}); err == nil {
+		t.Error("redirect loop not stopped")
+	}
+	if _, err := LoadOpenAPISpec("https://user:pass@api.example.com/openapi.json"); err == nil || !strings.Contains(err.Error(), "credentials in the URL") || strings.Contains(err.Error(), "pass") {
+		t.Errorf("userinfo: err = %v", err)
+	}
+}
+
+func TestLoadSkippingSpecURLsDoesNotFetch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mcpx.yaml")
+	// Port 1 is never listening; Load would fail on it.
+	conf := `{"servers": [{"name": "p", "transport": "openapi", "openapi": {"spec": "http://127.0.0.1:1/openapi.json"}}]}`
+	if err := os.WriteFile(path, []byte(conf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("Load succeeded against an unreachable spec URL")
+	}
+	cfg, err := LoadSkippingSpecURLs(path)
+	if err != nil || len(cfg.Servers) != 1 {
+		t.Fatalf("LoadSkippingSpecURLs: cfg=%v err=%v", cfg, err)
 	}
 }
