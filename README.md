@@ -83,6 +83,8 @@ mcpx scan --emit-config > mcpx.yaml          # generate a gateway config that bl
 
 The scanner only runs the MCP handshake and `tools/list`, and **never calls a tool**. Note that stdio servers are started just as your client would start them, so only scan configs you would run anyway. `--emit-config` never copies secret values: it writes `${env:NAME}` references instead.
 
+Exit codes: `0` clean, `1` a finding at or above `--fail-on` (default `high`), `2` an error. A missing config or a server that could not be scanned counts as an error, so a broken setup never passes a CI gate as clean.
+
 <details>
 <summary>Run it in GitHub Actions</summary>
 

@@ -1,4 +1,5 @@
-mcpx
+/mcpx
+/cmd/mcpx/mcpx
 *.exe
 *.test
 *.out
