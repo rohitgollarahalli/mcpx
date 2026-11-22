@@ -189,7 +189,7 @@ func loadFile(path, client string) ([]Server, error) {
 
 // loadMCPXConfig scans the backends of an mcpx gateway config directly.
 func loadMCPXConfig(path string) ([]Server, error) {
-	cfg, err := config.Load(path)
+	cfg, err := config.LoadSkippingSpecURLs(path) // scan skips openapi backends anyway
 	if err != nil {
 		return nil, err
 	}

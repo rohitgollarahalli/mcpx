@@ -149,7 +149,20 @@ func main() {
 
 	// reload applies a freshly loaded config by rebuilding the handler
 	// chain and atomically swapping it. It never mutates srv.Addr.
+	//
+	// SIGHUP and -watch reloads can overlap, and a load may be slow (spec
+	// URLs are fetched), so reloads are serialized and a config whose load
+	// started before the last applied one is dropped as stale.
+	var reloadMu sync.Mutex
+	lastApplied := cfg.LoadStarted()
 	reload := func(newCfg *config.Config) {
+		reloadMu.Lock()
+		defer reloadMu.Unlock()
+		if newCfg.LoadStarted().Before(lastApplied) {
+			slog.Warn("dropping stale config reload; a newer load was already applied")
+			return
+		}
+		lastApplied = newCfg.LoadStarted()
 		if newCfg.Listen != initialListen {
 			slog.Warn("listen address change requires restart; ignoring",
 				"current", initialListen, "new", newCfg.Listen)

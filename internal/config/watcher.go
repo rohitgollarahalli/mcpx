@@ -26,6 +26,10 @@ func Watch(ctx context.Context, path string, interval time.Duration, onReload Re
 	}
 
 	lastMod, lastSize := statSnapshot(path)
+	// failedMod/failedSize remember a version that failed to load, so it is
+	// retried every tick (a spec URL may come back) but logged only once.
+	var failedMod time.Time
+	var failedSize int64 = -1
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -39,15 +43,17 @@ func Watch(ctx context.Context, path string, interval time.Duration, onReload Re
 			if mod.Equal(lastMod) && size == lastSize {
 				continue
 			}
-			lastMod, lastSize = mod, size
 
 			cfg, err := Load(path)
 			if err != nil {
-				if onError != nil {
+				if onError != nil && (!mod.Equal(failedMod) || size != failedSize) {
 					onError(err)
 				}
+				failedMod, failedSize = mod, size
 				continue
 			}
+			lastMod, lastSize = mod, size
+			failedSize = -1
 			if err := onReload(cfg); err != nil {
 				if onError != nil {
 					onError(err)
