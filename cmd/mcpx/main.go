@@ -45,7 +45,12 @@ import (
 	"github.com/rohitgollarahalli/mcpx/internal/tracing"
 )
 
-const version = "0.1.0"
+// Set at build time by GoReleaser (-ldflags "-X main.version=...").
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
 	// Subcommands. The gateway itself keeps its flag-only interface.
@@ -62,7 +67,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("mcpx v%s\n", version)
+		fmt.Println(versionString())
 		os.Exit(0)
 	}
 
@@ -512,4 +517,13 @@ func serversHandler(w http.ResponseWriter, _ *http.Request, cfg *config.Config) 
 		fmt.Fprintf(w, `{"name":%q,"url":%q}`, srv.Name, url)
 	}
 	w.Write([]byte("]}"))
+}
+
+// versionString is the --version output: "mcpx v0.2.0 (commit abc1234, built
+// 2026-11-22T00:00:00Z)" for release builds, "mcpx dev" otherwise.
+func versionString() string {
+	if version == "dev" {
+		return "mcpx dev"
+	}
+	return fmt.Sprintf("mcpx v%s (commit %s, built %s)", version, commit, date)
 }

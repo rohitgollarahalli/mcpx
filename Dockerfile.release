@@ -1,0 +1,11 @@
+# Image used by GoReleaser: the binary is built (and cross-compiled) by
+# GoReleaser, so this only packages it. For a from-source build, use
+# Dockerfile instead.
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/mcpx /usr/local/bin/mcpx
+COPY mcpx.yaml /etc/mcpx/mcpx.yaml
+EXPOSE 8080
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/mcpx"]
+CMD ["-c", "/etc/mcpx/mcpx.yaml"]
