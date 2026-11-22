@@ -7,7 +7,9 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -192,9 +194,10 @@ type ServerConfig struct {
 // so policy allow/deny lists, argument rules, and cache rules refer to them
 // like any other tool. Operation filters use glob patterns ("list*").
 type OpenAPIConfig struct {
-	// Spec is the path to an OpenAPI 3.x document (JSON or YAML). A relative
-	// path is resolved against the directory of the config file. The spec
-	// is re-read on every config reload.
+	// Spec is the OpenAPI 3.x document (JSON or YAML): a file path, or an
+	// http(s):// URL the gateway fetches. A relative path is resolved
+	// against the directory of the config file. The spec is re-read (or
+	// re-fetched) on every config reload.
 	Spec string `yaml:"spec"`
 	// IncludeOperations, when set, exposes only operations whose tool name
 	// or operationId matches one of these patterns.
@@ -228,10 +231,32 @@ func (o *OpenAPIConfig) Filter() openapi.Filter {
 	}
 }
 
-// LoadOpenAPISpec reads and parses an OpenAPI document. YAML documents are
-// converted to JSON first; JSON is valid YAML, so either format works.
+// MaxOpenAPISpecBytes caps an OpenAPI document fetched from a URL, so a
+// misbehaving server cannot exhaust the gateway's memory at load time.
+const MaxOpenAPISpecBytes = 16 << 20
+
+// openAPIFetchTimeout bounds fetching a spec from a URL.
+var openAPIFetchTimeout = 30 * time.Second
+
+// IsSpecURL reports whether an openapi.spec value is an http(s) URL rather
+// than a file path.
+func IsSpecURL(s string) bool {
+	l := strings.ToLower(s)
+	return strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://")
+}
+
+// LoadOpenAPISpec reads and parses an OpenAPI document from a file path or
+// an http(s) URL. YAML documents are converted to JSON first; JSON is valid
+// YAML, so either format works.
 func LoadOpenAPISpec(path string) (*openapi.Spec, error) {
-	data, err := os.ReadFile(path)
+	var data []byte
+	var err error
+	if IsSpecURL(path) {
+		data, err = fetchOpenAPISpec(path)
+		path = redactSpecURL(path)
+	} else {
+		data, err = os.ReadFile(path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("reading openapi spec: %w", err)
 	}
@@ -250,6 +275,59 @@ func LoadOpenAPISpec(path string) (*openapi.Spec, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return spec, nil
+}
+
+// fetchOpenAPISpec downloads a spec. It requires a 200 response and
+// rejects bodies over MaxOpenAPISpecBytes instead of truncating them.
+// Errors name the URL without credentials or query string.
+func fetchOpenAPISpec(rawURL string) ([]byte, error) {
+	shown := redactSpecURL(rawURL)
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return nil, fmt.Errorf("invalid spec URL %s", shown)
+	}
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("invalid spec URL %s", shown)
+	}
+	req.Header.Set("Accept", "application/json, application/yaml;q=0.9, */*;q=0.5")
+	client := &http.Client{Timeout: openAPIFetchTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		// *url.Error repeats the full URL; report only the cause.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		return nil, fmt.Errorf("fetching %s: %v", shown, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching %s: unexpected status %s", shown, resp.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxOpenAPISpecBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("fetching %s: %v", shown, err)
+	}
+	if len(data) > MaxOpenAPISpecBytes {
+		return nil, fmt.Errorf("fetching %s: spec is larger than %d bytes", shown, MaxOpenAPISpecBytes)
+	}
+	return data, nil
+}
+
+// redactSpecURL hides userinfo and the query string, which often carry
+// credentials, so a spec URL is safe to log.
+func redactSpecURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "<invalid URL>"
+	}
+	u.User = nil
+	if u.RawQuery != "" {
+		u.RawQuery = "REDACTED"
+	}
+	u.Fragment = ""
+	return u.String()
 }
 
 // jsonCompatible rewrites decoded YAML into values encoding/json accepts:
@@ -405,9 +483,9 @@ func Load(path string) (*Config, error) {
 	}
 
 	// OpenAPI spec paths are relative to the config file, so a config and
-	// its specs can move together.
+	// its specs can move together. URLs are left as they are.
 	for i := range cfg.Servers {
-		if o := cfg.Servers[i].OpenAPI; o != nil && o.Spec != "" && !filepath.IsAbs(o.Spec) {
+		if o := cfg.Servers[i].OpenAPI; o != nil && o.Spec != "" && !IsSpecURL(o.Spec) && !filepath.IsAbs(o.Spec) {
 			o.Spec = filepath.Join(filepath.Dir(path), o.Spec)
 		}
 	}

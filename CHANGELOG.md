@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `openapi.spec` accepts an `http(s)://` URL as well as a file path, so an
+  openapi backend can track the API's published spec. The fetch requires a
+  `200` response, has a 30s timeout and a 16 MiB size cap, and is repeated
+  on every config reload. A failed fetch rejects the reload and keeps the
+  running config. Errors redact URL credentials and query strings.
 - `mcpx scan`: a zero-config security scanner for the MCP servers you
   already use. It discovers servers in Claude Desktop, Claude Code, Cursor,
   VS Code, Windsurf, Gemini CLI, Cline, and `mcpx.yaml` configs, runs the

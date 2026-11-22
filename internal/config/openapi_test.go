@@ -1,11 +1,16 @@
 package config
 
 import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testSpec = `{
@@ -145,5 +150,81 @@ func TestJSONCompatibleStringifiesKeys(t *testing.T) {
 	want := map[string]any{"responses": map[string]any{"200": map[string]any{"x": []any{map[string]any{"true": 1}}}}}
 	if got := jsonCompatible(in); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v", got)
+	}
+}
+
+func TestOpenAPISpecFromURL(t *testing.T) {
+	yamlSpec := "openapi: 3.0.3\ninfo: {title: Pets, version: '1.0'}\nservers: [{url: 'https://api.pets.example.com/v1'}]\npaths:\n  /pets:\n    get: {operationId: listPets}\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/openapi.json":
+			_, _ = io.WriteString(w, testSpec)
+		case "/openapi.yaml":
+			_, _ = io.WriteString(w, yamlSpec)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	for _, path := range []string{"/openapi.json", "/openapi.yaml"} {
+		cfg, err := writeOpenAPIConfig(t, "", `{"name": "p", "transport": "openapi", "openapi": {"spec": "`+srv.URL+path+`"}}`)
+		if err != nil {
+			t.Fatalf("%s: Load: %v", path, err)
+		}
+		sc := cfg.Servers[0]
+		if sc.OpenAPI.Spec != srv.URL+path {
+			t.Errorf("%s: spec URL rewritten to %q", path, sc.OpenAPI.Spec)
+		}
+		if sc.OpenAPI.Parsed == nil || sc.URL != "https://api.pets.example.com/v1" {
+			t.Errorf("%s: parsed=%v url=%q", path, sc.OpenAPI.Parsed != nil, sc.URL)
+		}
+	}
+
+	_, err := writeOpenAPIConfig(t, "", `{"name": "p", "transport": "openapi", "openapi": {"spec": "`+srv.URL+`/missing?token=s3cret"}}`)
+	if err == nil || !strings.Contains(err.Error(), "404") {
+		t.Fatalf("missing spec: err = %v, want a 404", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaks the query string: %v", err)
+	}
+}
+
+func TestOpenAPISpecURLLimits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/huge":
+			_, _ = w.Write(bytes.Repeat([]byte(" "), MaxOpenAPISpecBytes+1))
+		case "/slow":
+			time.Sleep(500 * time.Millisecond)
+			_, _ = io.WriteString(w, testSpec)
+		}
+	}))
+	defer srv.Close()
+
+	if _, err := LoadOpenAPISpec(srv.URL + "/huge"); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("oversized spec: err = %v", err)
+	}
+
+	defer func(d time.Duration) { openAPIFetchTimeout = d }(openAPIFetchTimeout)
+	openAPIFetchTimeout = 50 * time.Millisecond
+	if _, err := LoadOpenAPISpec(srv.URL + "/slow"); err == nil || !strings.Contains(err.Error(), "fetching") {
+		t.Errorf("slow spec: err = %v, want a fetch timeout", err)
+	}
+}
+
+func TestRedactSpecURL(t *testing.T) {
+	cases := map[string]string{
+		"https://api.example.com/openapi.json":               "https://api.example.com/openapi.json",
+		"https://user:pass@api.example.com/spec.yaml":        "https://api.example.com/spec.yaml",
+		"https://api.example.com/spec.json?api_key=abc#frag": "https://api.example.com/spec.json?REDACTED",
+	}
+	for in, want := range cases {
+		if got := redactSpecURL(in); got != want {
+			t.Errorf("redactSpecURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if !IsSpecURL("HTTPS://x.example.com/s.json") || IsSpecURL("specs/https.json") {
+		t.Error("IsSpecURL misclassifies")
 	}
 }
