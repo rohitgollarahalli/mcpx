@@ -186,3 +186,38 @@ func TestWatch_RetriesFailedLoadUntilItSucceeds(t *testing.T) {
 		t.Fatal("watcher did not retry the failed load")
 	}
 }
+
+// A save that truncates the file before writing (os.WriteFile, many editors)
+// can be observed as an empty file. An empty file parses as a valid config
+// with no servers, so the watcher must never reload one.
+func TestWatch_IgnoresEmptyFileMidWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mcpx.yaml")
+	writeFile(t, path, minimalYAML)
+
+	gotCfg := make(chan *Config, 4)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go Watch(ctx, path, 10*time.Millisecond, func(c *Config) error {
+		gotCfg <- c
+		return nil
+	}, nil)
+
+	time.Sleep(150 * time.Millisecond)
+	writeFile(t, path, "")
+	select {
+	case c := <-gotCfg:
+		t.Fatalf("reloaded an empty file (listen %q, %d servers)", c.Listen, len(c.Servers))
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	writeFile(t, path, updatedYAML)
+	select {
+	case c := <-gotCfg:
+		if c.Listen != ":9090" {
+			t.Errorf("expected listen :9090, got %q", c.Listen)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher did not reload after the write completed")
+	}
+}

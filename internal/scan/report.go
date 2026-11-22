@@ -288,12 +288,7 @@ func (r *Report) WriteSARIF(w io.Writer) error {
 		"$schema": "https://json.schemastore.org/sarif-2.1.0.json",
 		"version": "2.1.0",
 		"runs": []map[string]any{{
-			"tool": map[string]any{"driver": map[string]any{
-				"name":            "mcpx",
-				"semanticVersion": r.Version,
-				"informationUri":  "https://github.com/rohitgollarahalli/mcpx",
-				"rules":           rules,
-			}},
+			"tool":    map[string]any{"driver": sarifDriver(r.Version, rules)},
 			"results": results,
 		}},
 	}
@@ -429,4 +424,20 @@ func writeSecretMap(w io.Writer, key string, m map[string]string) {
 		}
 		fmt.Fprintf(w, "      %s: %s\n", strconv.Quote(k), strconv.Quote("${env:"+envName+"}"))
 	}
+}
+
+// sarifDriver builds the SARIF tool.driver object. SARIF 2.1.0
+// requires semanticVersion to be a SemVer string, so it is only set when the
+// version looks like one; the free-form version property is always set.
+func sarifDriver(version string, rules any) map[string]any {
+	d := map[string]any{
+		"name":           "mcpx",
+		"version":        version,
+		"informationUri": "https://github.com/rohitgollarahalli/mcpx",
+		"rules":          rules,
+	}
+	if version != "" && version[0] >= '0' && version[0] <= '9' {
+		d["semanticVersion"] = version
+	}
+	return d
 }

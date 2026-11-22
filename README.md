@@ -44,9 +44,11 @@ Server A    Server B
 Are the MCP servers you've already installed safe? Find out with one command. You don't need to deploy a gateway or change any config:
 
 ```bash
-go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
+curl -fsSL https://raw.githubusercontent.com/rohitgollarahalli/mcpx/main/install.sh | sh
 mcpx scan
 ```
+
+No Go toolchain needed: the script downloads the release binary for your OS and checks its SHA-256 checksum before installing it to `~/.local/bin`. See [Install](#install) for other options.
 
 `mcpx scan` finds every MCP server configured in **Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Gemini CLI, and Cline**. It connects to each one the same way your client does, and checks every tool definition (descriptions, parameter schemas, enums, defaults, and server instructions) for known attacks on AI agents:
 
@@ -89,10 +91,8 @@ Exit codes: `0` clean, `1` a finding at or above `--fail-on` (default `high`), `
 <summary>Run it in GitHub Actions</summary>
 
 ```yaml
-- uses: actions/setup-go@v5
-  with: { go-version: '1.22' }
-- run: go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
-- run: mcpx scan --format sarif --fail-on none .mcp.json > mcpx.sarif
+- run: curl -fsSL https://raw.githubusercontent.com/rohitgollarahalli/mcpx/main/install.sh | sh
+- run: ~/.local/bin/mcpx scan --format sarif --fail-on none .mcp.json > mcpx.sarif
 - uses: github/codeql-action/upload-sarif@v3
   with: { sarif_file: mcpx.sarif }
 ```
@@ -109,36 +109,42 @@ Most MCP gateway solutions require Kubernetes clusters, Docker Desktop, or full 
 | **Setup time** | 5 minutes | Hours (K8s required) | Docker Desktop | Kong cluster |
 | **Dependencies** | Single static binary | Kubernetes, Azure | Docker | Kong, Lua runtime |
 | **Config** | One YAML file | CRDs + Helm charts | UI + profiles | kong.yaml + plugins |
-| **Binary size** | ~10 MB | Cluster | Docker image | Full gateway |
+| **Binary size** | ~15 MB | Cluster | Docker image | Full gateway |
 | **Target users** | Devs & small teams | Enterprise Azure | Docker users | Existing Kong users |
 | **Prometheus metrics** | ✅ Built-in | Via adapter | Via Docker | Via plugin |
-| **Deep health checks** | ✅ Per-backend | ❌ | ❌ | Via plugin || **License** | MIT | MIT | Apache 2.0 | Apache 2.0 |
+| **Deep health checks** | ✅ Per-backend | ❌ | ❌ | Via plugin |
+| **License** | MIT | MIT | Apache 2.0 | Apache 2.0 |
+
+## Install
+
+| Method | Command |
+|---|---|
+| **Install script** (Linux, macOS) | `curl -fsSL https://raw.githubusercontent.com/rohitgollarahalli/mcpx/main/install.sh \| sh` |
+| **Prebuilt binaries** | Download from [Releases](https://github.com/rohitgollarahalli/mcpx/releases) (Linux, macOS, Windows; amd64 and arm64). Verify with `checksums.txt`. |
+| **Docker** (linux/amd64, linux/arm64) | `docker run -p 8080:8080 -v "$PWD/mcpx.yaml:/etc/mcpx/mcpx.yaml" ghcr.io/rohitgollarahalli/mcpx` |
+| **Go** (1.22+) | `go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest` |
+| **From source** | `git clone https://github.com/rohitgollarahalli/mcpx && cd mcpx && go build -o mcpx ./cmd/mcpx` |
+
+The install script takes `MCPX_VERSION=v0.2.0` to pin a release and `INSTALL_DIR=/usr/local/bin` to change the location. The Docker image runs as a non-root user on a distroless base. Use it for the gateway; `mcpx scan` needs to read your local client configs, so run that from a binary.
 
 ## Quick Start
 
 ```bash
-# Install from source
-git clone https://github.com/rohitgollarahalli/mcpx
-cd mcpx
-go build -o mcpx ./cmd/mcpx
-
-# Or install directly
-go install github.com/rohitgollarahalli/mcpx/cmd/mcpx@latest
-
 # Run with config
-./mcpx -c mcpx.yaml
+mcpx -c mcpx.yaml
 
 # Hot-reload the config file on every change
-./mcpx -c mcpx.yaml -watch
+mcpx -c mcpx.yaml -watch
 ```
 
 Send `SIGHUP` to force a reload at any time (`kill -HUP $(pidof mcpx)`). Reloads rebuild the handler chain atomically: in-flight requests finish against the old config, new ones see the new config. Invalid configs are rejected and the previous config keeps running.
 
 ```bash
 # Or use Docker
-docker build -t mcpx .
-docker run -p 8080:8080 -v $(pwd)/mcpx.yaml:/etc/mcpx/mcpx.yaml mcpx
+docker run -p 8080:8080 -v "$PWD/mcpx.yaml:/etc/mcpx/mcpx.yaml" ghcr.io/rohitgollarahalli/mcpx
 ```
+
+The image runs as a non-root user (uid 65532), so the mounted config must be world-readable (`chmod 644 mcpx.yaml`). Inside the container, `localhost` is the container itself, so point backend URLs at reachable hosts.
 
 The gateway starts on `:8080`. Point your MCP clients to `http://localhost:8080/mcp/{server_name}` instead of directly to your backend servers.
 

@@ -12,20 +12,54 @@ builds:
     binary: mcpx
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
 
 archives:
   - id: default
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - mcpx.yaml
 
 checksum:
   name_template: "checksums.txt"
+  algorithm: sha256
+
+# Multi-arch image on GHCR. Dockerfile.release only copies the prebuilt
+# binary into a distroless base, so no emulation is needed for arm64.
+dockers_v2:
+  - id: mcpx
+    ids: [mcpx]
+    dockerfile: Dockerfile.release
+    extra_files: [mcpx.yaml]
+    images:
+      - "ghcr.io/rohitgollarahalli/mcpx"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: "https://github.com/rohitgollarahalli/mcpx"
+      org.opencontainers.image.description: "Security gateway and scanner for MCP servers"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: "MIT"
+
+# Homebrew: add a `brews:` section once a rohitgollarahalli/homebrew-tap
+# repository exists (it needs its own token with write access to the tap).
 
 changelog:
   use: github
@@ -39,3 +73,6 @@ changelog:
 release:
   draft: false
   prerelease: auto
+  footer: |
+    **Install:** `curl -fsSL https://raw.githubusercontent.com/rohitgollarahalli/mcpx/main/install.sh | sh`
+    **Docker:** `docker run --rm ghcr.io/rohitgollarahalli/mcpx:{{ .Version }} --version`

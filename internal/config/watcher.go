@@ -44,7 +44,19 @@ func Watch(ctx context.Context, path string, interval time.Duration, onReload Re
 				continue
 			}
 
+			// A save that truncates before writing can be seen as an empty
+			// file, which would parse as a valid config with no servers.
+			// Wait for content instead of reloading it.
+			if size == 0 {
+				continue
+			}
+
 			cfg, err := Load(path)
+			// If the file changed while it was being read, the read may
+			// have seen a partial write. Retry on the next tick.
+			if mod2, size2 := statSnapshot(path); !mod2.Equal(mod) || size2 != size {
+				continue
+			}
 			if err != nil {
 				if onError != nil && (!mod.Equal(failedMod) || size != failedSize) {
 					onError(err)

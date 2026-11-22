@@ -1,0 +1,42 @@
+name: release-check
+
+# Dry-runs the release (archives, checksums and both image platforms) on
+# changes to release tooling, so a broken config is caught before a tag.
+# Nothing is published.
+on:
+  pull_request:
+    paths:
+      - ".goreleaser.yaml"
+      - "Dockerfile.release"
+      - "install.sh"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-check.yml"
+      - "go.mod"
+      - "cmd/mcpx/**"
+      - "mcpx.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: docker/setup-buildx-action@v3
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+      - name: Test install.sh against the snapshot
+        run: |
+          v=$(jq -r .version dist/metadata.json)
+          ls dist/mcpx_*_linux_amd64.tar.gz >/dev/null
+          mkdir -p "rel/v$v" && cp dist/*.tar.gz dist/checksums.txt "rel/v$v/"
+          MCPX_BASE_URL="file://$PWD/rel" MCPX_VERSION="v$v" INSTALL_DIR="$PWD/bin" sh install.sh
+          ./bin/mcpx --version

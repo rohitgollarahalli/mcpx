@@ -6,8 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+The first tagged release. 0.1.0 below was never published as a tag, so this
+release includes everything since the project started.
+
 ### Added
 
+- Release builds: prebuilt binaries for Linux, macOS and Windows (amd64 and
+  arm64) with SHA-256 checksums, a multi-arch image at
+  `ghcr.io/rohitgollarahalli/mcpx` (distroless, non-root), and `install.sh`,
+  which verifies the checksum before installing. `mcpx --version` reports the
+  release version, commit and build date. Builds made with `go install`
+  report the module version and VCS commit instead.
 - `openapi.spec` accepts an `http(s)://` URL as well as a file path, so an
   openapi backend can track the API's published spec. The fetch requires a
   `200` response, has a 30s timeout and a 16 MiB size cap, and is repeated
@@ -19,10 +30,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `-watch` retries a config that failed to load on later ticks instead of
   waiting for the file to change again.
 
-### Fixed
-
-- Overlapping reloads (SIGHUP and `-watch`) are serialized, and an older
-  load can no longer overwrite a newer config.
 - `mcpx scan`: a zero-config security scanner for the MCP servers you
   already use. It discovers servers in Claude Desktop, Claude Code, Cursor,
   VS Code, Windsurf, Gemini CLI, Cline, and `mcpx.yaml` configs, runs the
@@ -82,6 +89,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   empty. Injected header names are validated: reserved and hop-by-hop headers
   are rejected, and values containing CR/LF/NUL are rejected.
 
+### Fixed
+
+- Overlapping reloads (SIGHUP and `-watch`) are serialized, and an older
+  load can no longer overwrite a newer config.
+- `-watch` no longer reloads a config file caught mid-save. A save that
+  truncates before writing could be read as an empty file, which is a valid
+  config with no servers, so the gateway briefly dropped every backend. Empty
+  files are skipped, and a read is discarded if the file changed during it.
+
 ### Security
 
 - The credential a client presents to the gateway (`Authorization` for
@@ -103,9 +119,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hits carry `Age`, and `mcpx_cache_lookups_total` / `mcpx_cache_entries` /
   `mcpx_cache_evictions_total` are exported at `/metrics`.
 
-## [0.1.0] - 2026-06-21
+## 0.1.0 - 2026-06-21 (never tagged)
 
-First public release. mcpx is a lightweight gateway proxy that sits between MCP
+Not tagged or published as a release; its contents ship in 0.2.0. First
+public version. mcpx is a lightweight gateway proxy that sits between MCP
 clients and MCP servers, adding security and observability without modifying the
 backends. Single static binary, single YAML config.
 
@@ -130,4 +147,5 @@ backends. Single static binary, single YAML config.
 - Structured JSON audit logging with `X-Request-ID` correlation.
 - CORS support and hot config reload (SIGHUP + `-watch`).
 
-[0.1.0]: https://github.com/rohitgollarahalli/mcpx/releases/tag/v0.1.0
+[Unreleased]: https://github.com/rohitgollarahalli/mcpx/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rohitgollarahalli/mcpx/releases/tag/v0.2.0
