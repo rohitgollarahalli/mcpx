@@ -117,7 +117,9 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	rep := &Report{Version: opts.Version, Configs: configs, Servers: results}
 	rep.Findings = Analyze(results)
 
-	if opts.Baseline != "" {
+	// A cancelled scan has cut-off results; pinning them would corrupt the
+	// baseline, so leave it untouched.
+	if opts.Baseline != "" && ctx.Err() == nil {
 		created, changed, err := applyBaseline(opts.Baseline, results, opts.UpdateBaseline)
 		if err != nil {
 			return nil, err

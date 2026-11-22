@@ -156,26 +156,54 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 		return scanExitError
 	}
 
+	// An incomplete scan is reported even when findings already fail the
+	// run, so the operator knows the report does not cover everything.
+	incomplete := ""
+	switch failed, checked := scanCoverage(rep); {
+	case len(rep.Configs) == 0:
+		incomplete = "no MCP client configs found"
+	case brokenConfigs(rep) > 0:
+		incomplete = fmt.Sprintf("%d config file(s) could not be parsed", brokenConfigs(rep))
+	case failed > 0:
+		incomplete = fmt.Sprintf("%d server(s) could not be scanned; their tools were not checked", failed)
+	case checked == 0:
+		incomplete = "no servers were scanned"
+	}
+	if incomplete != "" {
+		fmt.Fprintf(stderr, "mcpx scan: %s\n", incomplete)
+	}
+
 	if !failNever && rep.Worst() >= failThreshold { // Worst is -1 with no findings
 		return scanExitFindings
 	}
-	if len(rep.Configs) == 0 {
-		fmt.Fprintln(stderr, "mcpx scan: no MCP client configs found")
-		return scanExitError
-	}
-	if failed := unscanned(rep); failed > 0 {
-		fmt.Fprintf(stderr, "mcpx scan: %d server(s) could not be scanned; their tools were not checked\n", failed)
+	if incomplete != "" {
 		return scanExitError
 	}
 	return scanExitOK
 }
 
-// unscanned counts servers that failed to connect or list tools. Servers
-// the scanner deliberately skipped (see scan.Server.Skip) do not count.
-func unscanned(rep *scan.Report) int {
-	n := 0
+// scanCoverage counts servers that failed to connect or list tools, and
+// servers whose tools were actually checked. Servers the scanner
+// deliberately skipped (see scan.Server.Skip) count as neither.
+func scanCoverage(rep *scan.Report) (failed, checked int) {
 	for _, r := range rep.Servers {
-		if r.Error != "" && r.Skip == "" {
+		switch {
+		case r.Skip != "":
+		case r.Error != "":
+			failed++
+		default:
+			checked++
+		}
+	}
+	return failed, checked
+}
+
+// brokenConfigs counts discovered config files that could not be parsed
+// (recorded with Servers == -1).
+func brokenConfigs(rep *scan.Report) int {
+	n := 0
+	for _, c := range rep.Configs {
+		if c.Servers < 0 {
 			n++
 		}
 	}

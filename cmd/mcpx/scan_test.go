@@ -153,3 +153,20 @@ func TestErrWriterKeepsFirstError(t *testing.T) {
 		t.Errorf("err = %v, want %v", w.err, os.ErrClosed)
 	}
 }
+
+func TestRunScanNothingCheckedIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	for name, conf := range map[string]string{
+		"empty":   `{"mcpServers": {}}`,
+		"skipped": `{"mcpServers": {"x": {}}}`, // no command or url: skipped
+	} {
+		cfg := filepath.Join(dir, name+".json")
+		if err := os.WriteFile(cfg, []byte(conf), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var out, errOut bytes.Buffer
+		if code := runScan([]string{cfg}, &out, &errOut); code != scanExitError {
+			t.Errorf("%s: exit %d, want %d; stderr: %s", name, code, scanExitError, errOut.String())
+		}
+	}
+}
