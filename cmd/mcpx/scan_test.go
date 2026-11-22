@@ -23,10 +23,14 @@ func TestParseInterspersed(t *testing.T) {
 		{[]string{"--format", "json", "a.json"}, []string{"a.json"}, "json"},
 		{[]string{"a.json", "--format", "json", "b.json"}, []string{"a.json", "b.json"}, "json"},
 		{[]string{"a.json", "--", "--format"}, []string{"a.json", "--format"}, "text"},
+		// "--" as a flag's value is not a terminator.
+		{[]string{"--format", "--", "a.json", "--format", "json"}, []string{"a.json"}, "json"},
+		{[]string{"--verbose", "--", "--format"}, []string{"--format"}, "text"},
 	}
 	for _, c := range cases {
 		fs := flag.NewFlagSet("t", flag.ContinueOnError)
 		format := fs.String("format", "text", "")
+		fs.Bool("verbose", false, "")
 		got, err := parseInterspersed(fs, c.args)
 		if err != nil {
 			t.Fatalf("%v: %v", c.args, err)
@@ -45,6 +49,7 @@ func TestRunScanUsageErrors(t *testing.T) {
 		{"--update-baseline"},
 		{"--timeout", "0s"},
 		{"--no-such-flag"},
+		{"--emit-config", "--format", "sarif"},
 	} {
 		var out, errOut bytes.Buffer
 		if code := runScan(args, &out, &errOut); code != scanExitError {
@@ -120,5 +125,31 @@ func TestRunScanPoisonedDemo(t *testing.T) {
 	run("--fail-on", "none", "--baseline", bl, cfg)
 	if _, err := os.Stat(bl); err != nil {
 		t.Errorf("baseline not written: %v", err)
+	}
+}
+
+func TestRunScanUnscannedServerIsAnError(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), "mcp.json")
+	conf := `{"mcpServers": {"gone": {"command": "/nonexistent/mcp-server"}}}`
+	if err := os.WriteFile(cfg, []byte(conf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	code := runScan([]string{"--timeout", "5s", cfg}, &out, &errOut)
+	if code != scanExitError || !strings.Contains(errOut.String(), "could not be scanned") {
+		t.Errorf("exit %d, want %d; stderr: %s", code, scanExitError, errOut.String())
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, os.ErrClosed }
+
+func TestErrWriterKeepsFirstError(t *testing.T) {
+	w := &errWriter{w: failingWriter{}}
+	_, _ = w.Write([]byte("a"))
+	_, _ = w.Write([]byte("b"))
+	if w.err != os.ErrClosed {
+		t.Errorf("err = %v, want %v", w.err, os.ErrClosed)
 	}
 }
