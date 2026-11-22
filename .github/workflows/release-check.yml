@@ -11,6 +11,9 @@ on:
       - "install.sh"
       - ".github/workflows/release.yml"
       - ".github/workflows/release-check.yml"
+      - "go.mod"
+      - "cmd/mcpx/**"
+      - "mcpx.yaml"
 
 permissions:
   contents: read
@@ -33,6 +36,7 @@ jobs:
       - name: Test install.sh against the snapshot
         run: |
           v=$(jq -r .version dist/metadata.json)
+          ls dist/mcpx_*_linux_amd64.tar.gz >/dev/null
           mkdir -p "rel/v$v" && cp dist/*.tar.gz dist/checksums.txt "rel/v$v/"
           MCPX_BASE_URL="file://$PWD/rel" MCPX_VERSION="v$v" INSTALL_DIR="$PWD/bin" sh install.sh
           ./bin/mcpx --version

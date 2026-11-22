@@ -520,7 +520,8 @@ func serversHandler(w http.ResponseWriter, _ *http.Request, cfg *config.Config) 
 }
 
 // versionString is the --version output: "mcpx v0.2.0 (commit abc1234, built
-// 2026-11-22T00:00:00Z)" for release builds, "mcpx dev" otherwise.
+// 2026-11-22T00:00:00Z)" for release and go-install builds, "mcpx dev" when no
+// version is known (see resolveVersion).
 func versionString() string {
 	if version == "dev" {
 		return "mcpx dev"

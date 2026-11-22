@@ -14,7 +14,7 @@
 set -eu
 
 REPO="rohitgollarahalli/mcpx"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-${HOME:?set HOME or INSTALL_DIR}/.local/bin}"
 BASE_URL="${MCPX_BASE_URL:-https://github.com/$REPO/releases/download}"
 
 say() { printf 'mcpx-install: %s\n' "$*" >&2; }
@@ -36,9 +36,9 @@ latest_version() {
 	# The /releases/latest page redirects to /releases/tag/<tag>.
 	url="https://github.com/$REPO/releases/latest"
 	if have curl; then
-		loc=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$url")
+		loc=$(curl --proto '=https' --tlsv1.2 -fsSLI -o /dev/null -w '%{url_effective}' "$url")
 	else
-		loc=$(wget -q -S --spider "$url" 2>&1 | sed -n 's/^ *Location: *//p' | tail -n 1)
+		loc=$(wget -q -S --spider "$url" 2>&1 | tr -d '\r' | sed -n 's/^ *[Ll]ocation: *//p' | tail -n 1)
 	fi
 	tag=${loc##*/}
 	case "$tag" in
@@ -72,7 +72,9 @@ aarch64 | arm64) arch=arm64 ;;
 esac
 
 version="${MCPX_VERSION:-}"
+[ "$version" != latest ] || version=""
 [ -n "$version" ] || version=$(latest_version)
+case "$version" in v[0-9]* | [0-9]*) ;; *) die "MCPX_VERSION must look like v1.2.3 (got '$version')" ;; esac
 case "$version" in v*) ;; *) version="v$version" ;; esac
 plain=${version#v}
 
@@ -97,7 +99,8 @@ cp "$tmp/mcpx" "$INSTALL_DIR/.mcpx.new"
 chmod 0755 "$INSTALL_DIR/.mcpx.new"
 mv -f "$INSTALL_DIR/.mcpx.new" "$INSTALL_DIR/mcpx"
 
-say "installed $("$INSTALL_DIR/mcpx" --version) to $INSTALL_DIR/mcpx"
+installed=$("$INSTALL_DIR/mcpx" --version) || die "installed $INSTALL_DIR/mcpx but it does not run on this system"
+say "installed $installed to $INSTALL_DIR/mcpx"
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) ;;
 *) say "note: $INSTALL_DIR is not on your PATH; add it, e.g. export PATH=\"$INSTALL_DIR:\$PATH\"" ;;

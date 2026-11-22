@@ -109,7 +109,7 @@ Most MCP gateway solutions require Kubernetes clusters, Docker Desktop, or full 
 | **Setup time** | 5 minutes | Hours (K8s required) | Docker Desktop | Kong cluster |
 | **Dependencies** | Single static binary | Kubernetes, Azure | Docker | Kong, Lua runtime |
 | **Config** | One YAML file | CRDs + Helm charts | UI + profiles | kong.yaml + plugins |
-| **Binary size** | ~10 MB | Cluster | Docker image | Full gateway |
+| **Binary size** | ~15 MB | Cluster | Docker image | Full gateway |
 | **Target users** | Devs & small teams | Enterprise Azure | Docker users | Existing Kong users |
 | **Prometheus metrics** | ✅ Built-in | Via adapter | Via Docker | Via plugin |
 | **Deep health checks** | ✅ Per-backend | ❌ | ❌ | Via plugin |
@@ -143,6 +143,8 @@ Send `SIGHUP` to force a reload at any time (`kill -HUP $(pidof mcpx)`). Reloads
 # Or use Docker
 docker run -p 8080:8080 -v "$PWD/mcpx.yaml:/etc/mcpx/mcpx.yaml" ghcr.io/rohitgollarahalli/mcpx
 ```
+
+The image runs as a non-root user (uid 65532), so the mounted config must be world-readable (`chmod 644 mcpx.yaml`). Inside the container, `localhost` is the container itself, so point backend URLs at reachable hosts.
 
 The gateway starts on `:8080`. Point your MCP clients to `http://localhost:8080/mcp/{server_name}` instead of directly to your backend servers.
 

@@ -17,7 +17,8 @@ release includes everything since the project started.
   arm64) with SHA-256 checksums, a multi-arch image at
   `ghcr.io/rohitgollarahalli/mcpx` (distroless, non-root), and `install.sh`,
   which verifies the checksum before installing. `mcpx --version` reports the
-  release version, commit and build date.
+  release version, commit and build date. Builds made with `go install`
+  report the module version and VCS commit instead.
 - `openapi.spec` accepts an `http(s)://` URL as well as a file path, so an
   openapi backend can track the API's published spec. The fetch requires a
   `200` response, has a 30s timeout and a 16 MiB size cap, and is repeated
@@ -29,10 +30,6 @@ release includes everything since the project started.
 - `-watch` retries a config that failed to load on later ticks instead of
   waiting for the file to change again.
 
-### Fixed
-
-- Overlapping reloads (SIGHUP and `-watch`) are serialized, and an older
-  load can no longer overwrite a newer config.
 - `mcpx scan`: a zero-config security scanner for the MCP servers you
   already use. It discovers servers in Claude Desktop, Claude Code, Cursor,
   VS Code, Windsurf, Gemini CLI, Cline, and `mcpx.yaml` configs, runs the
@@ -92,6 +89,11 @@ release includes everything since the project started.
   empty. Injected header names are validated: reserved and hop-by-hop headers
   are rejected, and values containing CR/LF/NUL are rejected.
 
+### Fixed
+
+- Overlapping reloads (SIGHUP and `-watch`) are serialized, and an older
+  load can no longer overwrite a newer config.
+
 ### Security
 
 - The credential a client presents to the gateway (`Authorization` for
@@ -113,7 +115,7 @@ release includes everything since the project started.
   hits carry `Age`, and `mcpx_cache_lookups_total` / `mcpx_cache_entries` /
   `mcpx_cache_evictions_total` are exported at `/metrics`.
 
-## [0.1.0] - 2026-06-21
+## 0.1.0 - 2026-06-21 (never tagged)
 
 Not tagged or published as a release; its contents ship in 0.2.0. First
 public version. mcpx is a lightweight gateway proxy that sits between MCP
